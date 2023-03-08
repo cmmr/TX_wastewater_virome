@@ -1,0 +1,320 @@
+---
+title: "analyze strains/sample and rarefaction by site/city/total"
+output: html_notebook
+---
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(dplyr)
+library(lubridate)
+library(wesanderson)
+library(tidyr)
+library(micropan)
+library(rprojroot)
+
+```
+
+set paths and filenames
+```{r}
+### files
+virome_table=sprintf(
+  "%s/data/wastewater_virome_abundance_table1.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+
+```
+
+merge abundance and metadata tables
+```{r}
+virome_dt <- fread(virome_table, sep = "\t", header = T )
+
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+
+virome_met_dt <- merge(virome_dt, meta_dt, by = "sample_ID")
+
+virome_met_dt$City_Site <- str_c(virome_met_dt$City, ", ", virome_met_dt$Site)
+
+```
+
+plot histogram of strains per sample
+```{r}
+custom_scale <- wes_palette("Darjeeling1", 13, type = "continuous")
+custom_scale
+median_strains <- virome_met_dt %>%
+  group_by(sample_ID, City_Site) %>%
+  summarize(strains = n_distinct(strain)) %>%
+  group_by(City_Site) %>%
+  summarize(median_strains = median(strains))
+  
+strainsp <- virome_met_dt %>%
+  group_by(sample_ID, City_Site) %>%
+  summarize(strains = n_distinct(strain)) %>%
+  ggplot(aes(x=strains, fill = City_Site)) +
+  geom_density(alpha = 0.5, color = "grey20") +
+  geom_rug() +
+  scale_fill_manual(values = custom_scale[c(3:6,8:13)]) +
+  geom_vline(data = median_strains, aes(xintercept = median_strains)) +
+  geom_text(data = median_strains, aes(x = median_strains-4.2, y = 0.01, label = median_strains), angle=90) +
+  facet_wrap(vars(City_Site), ncol = 1, strip.position = "right", 
+             labeller = label_wrap_gen(width = 13)) +
+  xlim(c(0,160)) +
+  theme_void() +
+  labs(x = "strains detected per sample") +
+  theme(legend.position = "Off",
+        axis.text.x = element_text(size=10))
+
+ggsave(strainsp, file = sprintf("%s/charts/strains_by_site.pdf", find_rstudio_root_file()), width = 3.5, height = 6)
+```
+
+Rarefaction curves for subsets of data
+```{r}
+all_strain_wide <- 
+  virome_met_dt %>% 
+  group_by(strain, sample_ID) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  distinct(strain, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = strain, values_from = RPKMF, values_fill = 0) %>%
+  subset(select = -sample_ID)
+
+mat_all_wide <- as.matrix(all_strain_wide)
+all_rare <- rarefaction(mat_all_wide, n.perm = 100)
+all_rare$avg <- rowMeans(all_rare[,-1], na.rm=TRUE)
+all_rare$max_g <- apply(all_rare[,-1], 1, max)
+all_rare$min_g <- apply(all_rare[,-1], 1, min)
+all_rare$type <- "City"
+all_rare$subset <- "All"
+
+HTX_strain_wide <- 
+  virome_met_dt %>% 
+  filter(City == "Houston, TX") %>%
+  group_by(strain, sample_ID) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  distinct(strain, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = strain, values_from = RPKMF, values_fill = 0) %>%
+  subset(select = -sample_ID)
+
+mat_HTX_wide <- as.matrix(HTX_strain_wide)
+HTX_rare <- rarefaction(mat_HTX_wide, n.perm = 100)
+HTX_rare$avg <- rowMeans(HTX_rare[,-1], na.rm=TRUE)
+HTX_rare$max_g <- apply(HTX_rare[,-1], 1, max)
+HTX_rare$min_g <- apply(HTX_rare[,-1], 1, min)
+HTX_rare$type <- "City"
+HTX_rare$subset <- "Houston, TX"
+
+EPTX_strain_wide <- 
+  virome_met_dt %>% 
+  filter(City == "El Paso, TX") %>%
+  group_by(strain, sample_ID) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  distinct(strain, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = strain, values_from = RPKMF, values_fill = 0) %>%
+  subset(select = -sample_ID)
+
+mat_EPTX_wide <- as.matrix(EPTX_strain_wide)
+EPTX_rare <- rarefaction(mat_EPTX_wide, n.perm = 100)
+EPTX_rare$avg <- rowMeans(EPTX_rare[,-1], na.rm=TRUE)
+EPTX_rare$max_g <- apply(EPTX_rare[,-1], 1, max)
+EPTX_rare$min_g <- apply(EPTX_rare[,-1], 1, min)
+EPTX_rare$type <- "City"
+EPTX_rare$subset <- "El Paso, TX"
+
+JH_strain_wide <- 
+  virome_met_dt %>% 
+  filter(Site == "John T. Hickerson") %>%
+  group_by(strain, sample_ID) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  distinct(strain, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = strain, values_from = RPKMF, values_fill = 0) %>%
+  subset(select = -sample_ID)
+
+mat_JH_wide <- as.matrix(JH_strain_wide)
+JH_rare <- rarefaction(mat_JH_wide, n.perm = 100)
+JH_rare$avg <- rowMeans(JH_rare[,-1], na.rm=TRUE)
+JH_rare$max_g <- apply(JH_rare[,-1], 1, max)
+JH_rare$min_g <- apply(JH_rare[,-1], 1, min)
+JH_rare$type <- "Site"
+JH_rare$subset <- "El Paso, TX, John T. Hickerson"
+
+FH_strain_wide <- 
+  virome_met_dt %>% 
+  filter(Site == "Fred Hurvey") %>%
+  group_by(strain, sample_ID) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  distinct(strain, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = strain, values_from = RPKMF, values_fill = 0) %>%
+  subset(select = -sample_ID)
+
+mat_FH_wide <- as.matrix(FH_strain_wide)
+FH_rare <- rarefaction(mat_FH_wide, n.perm = 100)
+FH_rare$avg <- rowMeans(FH_rare[,-1], na.rm=TRUE)
+FH_rare$max_g <- apply(FH_rare[,-1], 1, max)
+FH_rare$min_g <- apply(FH_rare[,-1], 1, min)
+FH_rare$type <- "Site"
+FH_rare$subset <- "El Paso, TX, Fred Hurvey"
+
+HA_strain_wide <- 
+  virome_met_dt %>% 
+  filter(Site == "Haskell") %>%
+  group_by(strain, sample_ID) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  distinct(strain, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = strain, values_from = RPKMF, values_fill = 0) %>%
+  subset(select = -sample_ID)
+
+mat_HA_wide <- as.matrix(HA_strain_wide)
+HA_rare <- rarefaction(mat_HA_wide, n.perm = 100)
+HA_rare$avg <- rowMeans(HA_rare[,-1], na.rm=TRUE)
+HA_rare$max_g <- apply(HA_rare[,-1], 1, max)
+HA_rare$min_g <- apply(HA_rare[,-1], 1, min)
+HA_rare$type <- "Site"
+HA_rare$subset <- "El Paso, TX, Haskell"
+
+RB_strain_wide <- 
+  virome_met_dt %>% 
+  filter(Site == "Roberto Bustamante") %>%
+  group_by(strain, sample_ID) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  distinct(strain, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = strain, values_from = RPKMF, values_fill = 0) %>%
+  subset(select = -sample_ID)
+
+mat_RB_wide <- as.matrix(RB_strain_wide)
+RB_rare <- rarefaction(mat_RB_wide, n.perm = 100)
+RB_rare$avg <- rowMeans(RB_rare[,-1], na.rm=TRUE)
+RB_rare$max_g <- apply(RB_rare[,-1], 1, max)
+RB_rare$min_g <- apply(RB_rare[,-1], 1, min)
+RB_rare$type <- "Site"
+RB_rare$subset <- "El Paso, TX, Roberto Bustamante"
+
+PT_strain_wide <- 
+  virome_met_dt %>% 
+  filter(Site == "Park Ten") %>%
+  group_by(strain, sample_ID) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  distinct(strain, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = strain, values_from = RPKMF, values_fill = 0) %>%
+  subset(select = -sample_ID)
+
+mat_PT_wide <- as.matrix(PT_strain_wide)
+PT_rare <- rarefaction(mat_PT_wide, n.perm = 100)
+PT_rare$avg <- rowMeans(PT_rare[,-1], na.rm=TRUE)
+PT_rare$max_g <- apply(PT_rare[,-1], 1, max)
+PT_rare$min_g <- apply(PT_rare[,-1], 1, min)
+PT_rare$type <- "Site"
+PT_rare$subset <- "Houston, TX, Park Ten"
+
+AS_strain_wide <- 
+  virome_met_dt %>% 
+  filter(Site == "Almeda Sims") %>%
+  group_by(strain, sample_ID) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  distinct(strain, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = strain, values_from = RPKMF, values_fill = 0) %>%
+  subset(select = -sample_ID)
+
+mat_AS_wide <- as.matrix(AS_strain_wide)
+AS_rare <- rarefaction(mat_AS_wide, n.perm = 100)
+AS_rare$avg <- rowMeans(AS_rare[,-1], na.rm=TRUE)
+AS_rare$max_g <- apply(AS_rare[,-1], 1, max)
+AS_rare$min_g <- apply(AS_rare[,-1], 1, min)
+AS_rare$type <- "Site"
+AS_rare$subset <- "Houston, TX, Almeda Sims"
+
+MC_strain_wide <- 
+  virome_met_dt %>% 
+  filter(Site == "Metro Central") %>%
+  group_by(strain, sample_ID) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  distinct(strain, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = strain, values_from = RPKMF, values_fill = 0) %>%
+  subset(select = -sample_ID)
+
+mat_MC_wide <- as.matrix(MC_strain_wide)
+MC_rare <- rarefaction(mat_MC_wide, n.perm = 100)
+MC_rare$avg <- rowMeans(MC_rare[,-1], na.rm=TRUE)
+MC_rare$max_g <- apply(MC_rare[,-1], 1, max)
+MC_rare$min_g <- apply(MC_rare[,-1], 1, min)
+MC_rare$type <- "Site"
+MC_rare$subset <- "Houston, TX, Metro Central"
+
+TC_strain_wide <- 
+  virome_met_dt %>% 
+  filter(Site == "Turkey Creek") %>%
+  group_by(strain, sample_ID) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  distinct(strain, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = strain, values_from = RPKMF, values_fill = 0) %>%
+  subset(select = -sample_ID)
+
+mat_TC_wide <- as.matrix(TC_strain_wide)
+TC_rare <- rarefaction(mat_TC_wide, n.perm = 100)
+TC_rare$avg <- rowMeans(TC_rare[,-1], na.rm=TRUE)
+TC_rare$max_g <- apply(TC_rare[,-1], 1, max)
+TC_rare$min_g <- apply(TC_rare[,-1], 1, min)
+TC_rare$type <- "Site"
+TC_rare$subset <- "Houston, TX, Turkey Creek"
+
+IA_strain_wide <- 
+  virome_met_dt %>% 
+  filter(Site == "Intercontinental Airport") %>%
+  group_by(strain, sample_ID) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  distinct(strain, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = strain, values_from = RPKMF, values_fill = 0) %>%
+  subset(select = -sample_ID)
+
+mat_IA_wide <- as.matrix(IA_strain_wide)
+IA_rare <- rarefaction(mat_IA_wide, n.perm = 100)
+IA_rare$avg <- rowMeans(IA_rare[,-1], na.rm=TRUE)
+IA_rare$max_g <- apply(IA_rare[,-1], 1, max)
+IA_rare$min_g <- apply(IA_rare[,-1], 1, min)
+IA_rare$type <- "Site"
+IA_rare$subset <- "Houston, TX, Intercontinental Airport"
+
+HS_strain_wide <- 
+  virome_met_dt %>% 
+  filter(Site == "Homestead") %>%
+  group_by(strain, sample_ID) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  distinct(strain, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = strain, values_from = RPKMF, values_fill = 0) %>%
+  subset(select = -sample_ID)
+
+mat_HS_wide <- as.matrix(HS_strain_wide)
+HS_rare <- rarefaction(mat_HS_wide, n.perm = 100)
+HS_rare$avg <- rowMeans(HS_rare[,-1], na.rm=TRUE)
+HS_rare$max_g <- apply(HS_rare[,-1], 1, max)
+HS_rare$min_g <- apply(HS_rare[,-1], 1, min)
+HS_rare$type <- "Site"
+HS_rare$subset <- "Houston, TX, Homestead"
+
+multi_rare <- rbind(all_rare, HTX_rare, EPTX_rare, JH_rare, FH_rare, HA_rare, RB_rare, AS_rare, PT_rare, MC_rare, TC_rare, IA_rare, HS_rare)
+
+#custom_scale <- rev(c("#D0A374","#E293BD","#C29DDE","#39BDBC","#A4B266"))
+custom_scale <- wes_palette("Darjeeling1", 13, type = "continuous")
+#custom_scale
+ggplot(multi_rare, aes(x=Genome,y=avg)) +
+	geom_ribbon(aes(x=Genome,ymin=min_g,ymax=max_g,fill=subset),alpha=0.2) +
+	geom_line(aes(x=Genome,y=avg,col=subset), size = 1.2, alpha = 0.95) +
+	xlab("WWTP Samples Analyzed") + 
+	ylab("Number of Unique Strains Detected") +
+	facet_wrap(vars(type), nrow=1, scales = "free_x") +  
+	scale_fill_manual(values=custom_scale) +
+  scale_color_manual(values=custom_scale) +
+	theme_bw()
+
+ggsave(sprintf("%s/charts/strain_rarefaction_city_site1.pdf", find_rstudio_root_file()), width = 9, height = 6)
+
+virome_met_dt %>% distinct(Site)
+```
+
+
+
+
+
+
