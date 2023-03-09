@@ -1,0 +1,141 @@
+---
+title: "Compare Mpox case count and virome seq abundance in Houston, TX , May 2022 - February 2023"
+output: html_notebook
+---
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(dplyr)
+library(readxl)
+library(lubridate)
+library(tidyquant)
+library(tidyr)
+
+```
+
+set paths and filenames
+```{r}
+### files
+pathogen_table=sprintf(
+  "%s/data/wastewater_specific_pathogen_abundance_table1.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+htx_mpox_case_table=sprintf(
+  "%s/data/DSHS_MonkeyPox_Dashboard_Data.xlsx", 
+  find_rstudio_root_file())
+
+```
+
+load pathogen table, metadata table, format by week
+```{r}
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+
+
+mpox_virome_seq_dt <- fread(pathogen_table, sep = "\t", header = T) %>%
+  filter(Virus_name == "Monkeypox virus") %>%
+  mutate(RPKMF = case_when(Detection == "below_detectable_level" ~ 0,
+                           TRUE ~ RPKMF ))
+  
+mpox_HTX_week_dt  <- merge(mpox_virome_seq_dt, meta_dt, by = "sample_ID") %>%
+  filter(City == "Houston, TX") %>%
+  mutate(Week = floor_date(Date, "weeks", week_start = 1)) %>%
+  group_by(Week) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  filter(between(Week, as.Date('2022-06-26'), as.Date('2022-11-29')))
+```
+
+monkeypox epi data, Houston, TX: load, parse
+```{r}
+monkeypox_cumulative_dt <- read_excel(htx_mpox_case_table, col_names=T, col_types = c("date", "text", "text", "numeric", "text"))
+
+colnames(monkeypox_cumulative_dt) <- c("Date", "data_source", "PHR", "Cases", "City")
+
+# Houston data only, difference between adjacent dates of reporting
+monkeypox_c_HTX <- monkeypox_cumulative_dt %>% filter(City == "Houston") %>%
+  mutate(diff = c(difftime(tail(Date, -1), head(Date, -1)),0))
+monkeypox_c_HTX$diff <- monkeypox_c_HTX$diff %>% gsub(" days", "", .) %>% gsub("-", "", .)
+monkeypox_c_HTX$diff <- as.numeric(monkeypox_c_HTX$diff)
+
+# change cases from cumulative to difference from last row
+monkeypox_c_HTX <- monkeypox_c_HTX %>% mutate_at(vars(Cases), ~ .-c(0,lag(.)[-1]))
+
+
+# format date
+monkeypox_c_HTX$Date <- as.Date(monkeypox_c_HTX$Date)
+
+# calculate week
+monkeypox_c_HTX <- monkeypox_c_HTX %>%
+  mutate(Week = cut(as.Date(Date), "week"))
+
+# group by week
+monkeypox_c_HTX_week <- monkeypox_c_HTX %>%
+  group_by(Week) %>%
+  summarize(Rate = mean(Cases))
+
+ggplot(monkeypox_c_HTX_week, aes(x=Week, y=Rate)) +
+  geom_point() +
+  geom_smooth() +
+  ggtitle("Monkeypox epi") +
+  theme_bw()
+```
+
+plot moving average mpox
+```{r}
+mpox_HTX_week_dt$Week <- as.Date(mpox_HTX_week_dt$Week)
+monkeypox_c_HTX_week$Week <- as.Date(monkeypox_c_HTX_week$Week)
+
+
+ggplot() + 
+  geom_point(data = mpox_HTX_week_dt, 
+            aes(x=Week, y=6000*(RPKMF), color="Virome Seq"), 
+            alpha = 0.2, size = 1) +
+  geom_point(data = monkeypox_c_HTX_week, 
+            aes(x=Week, y=Rate, color="Case Rate"), 
+            alpha = 0.2, size = 1) +
+  geom_ma(data = mpox_HTX_week_dt, 
+          aes(x=Week, y=6000*(RPKMF), color="Virome Seq"), 
+          ma_fun = SMA, n = 3, size = 4) +
+  geom_ma(data = monkeypox_c_HTX_week, 
+          aes(x=Week, y=Rate, color="Case Rate"), 
+          ma_fun = SMA, n = 3, linetype = "solid", size = 4) +
+  scale_color_manual(name='Data Type',
+                     breaks=c('Virome Seq', 'Case Rate'),
+                     values=c('Virome Seq'='#4B4E55', 'Case Rate'='#ACC2CF')) +
+  labs(x = "Date", title = "Houston, TX Mpox Measurements") +
+  theme_bw() +
+  scale_y_continuous(name = "Avg. Daily Case Rate",
+    sec.axis = sec_axis( trans=~./6000, name="Wastewater Sequencing \nAbundance (RPKMF)", label=scales::comma)
+  ) +
+  scale_x_date(date_labels="%Y-%b",date_breaks  ="1 month")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggsave(sprintf("%s/charts/Mpox_HTX_virome_vs_cases1.pdf", find_rstudio_root_file()), width = 5, height = 4)
+```
+
+correlation
+```{r}
+merge_mpox_dt <- merge(mpox_HTX_week_dt, monkeypox_c_HTX_week, by = "Week")
+
+cor(merge_mpox_dt$RPKMF, merge_mpox_dt$Rate)
+```
+
+plot scatter
+```{r}
+merge_mpox_dt %>%
+  ggplot(aes(x = Rate, y = RPKMF)) +
+  geom_point(color = "#678096") + 
+  geom_smooth(se = F, method = "lm", color = "#678096") +
+  labs(y = "Wastewater Sequencing \nAbundance (RPKMF)", 
+       x = "Avg. Daily Case Rate") +
+  theme_bw()
+
+ggsave(sprintf("%s/charts/Mpox_HTX_virome_vs_cases_wave_scatter1.pdf", find_rstudio_root_file()), width = 3, height = 3)
+
+```
+
+
