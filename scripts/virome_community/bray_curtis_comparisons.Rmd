@@ -1,0 +1,179 @@
+---
+title: "Bray-Curtis Distance by date, site, city"
+output: html_notebook
+---
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(rprojroot)
+library(vegan)
+library(wesanderson)
+library(cowplot)
+library(ggpubr)
+library(rstatix)
+```
+
+set paths and filenames
+```{r}
+### files
+virome_table=sprintf(
+  "%s/data/wastewater_virome_abundance_table1.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+
+```
+
+load virome table, make wide
+```{r}
+virome_dt <- fread(virome_table, sep = "\t", header = T )
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+
+seqname_sID_wide_dt <- 
+  virome_dt %>% 
+  subset(select = c("sequence_name", "sample_ID", "RPKMF")) %>%
+  distinct(sequence_name, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = sequence_name, values_from = RPKMF, values_fill = 0)
+
+sampleID_l <- seqname_sID_wide_dt$sample_ID
+
+seqname_sID_wide_dt <- seqname_sID_wide_dt %>% subset(select = -sample_ID)
+```
+
+calculate bray-curtis distance
+```{r}
+bray_curtis_dist <- vegdist(seqname_sID_wide_dt, method="bray")
+
+hist(bray_curtis_dist)
+
+bray_curtis_mat <- as.matrix(bray_curtis_dist)
+
+bray_curtis_df <- as.data.frame(bray_curtis_mat)
+colnames(bray_curtis_df) <- sampleID_l
+rownames(bray_curtis_df) <- sampleID_l
+bray_curtis_df$sampleID1 <- rownames(bray_curtis_df)
+#bray_curtis_df$sampleID1
+melt_long <- melt(setDT(bray_curtis_df), 
+                  id.vars = c("sampleID1"), variable.name = "sampleID2")
+
+
+meta_long <- merge(melt_long, meta_dt, 
+                   by.x = "sampleID1", by.y = "sample_ID", 
+                   all.x = T, suffixes = c("", ".1"))
+meta_long <- merge(meta_long, meta_dt, 
+                   by.x = "sampleID2", by.y = "sample_ID", 
+                   all.x = T, suffixes = c(".1", ".2"))
+
+meta_long$Date.1 <- as.Date(meta_long$Date.1, , "%m-%d-%Y")
+meta_long$Date.2 <- as.Date(meta_long$Date.2, , "%m-%d-%Y")
+
+same_site_bray_dt <- meta_long %>% 
+  filter(sampleID1 != sampleID2) %>%
+  filter(Site.1 == Site.2)
+
+same_site_bray_dt$time_passed <- 
+  difftime(same_site_bray_dt$Date.1, 
+           same_site_bray_dt$Date.2, units = "days") %>% 
+  gsub(" days", "", .)
+same_site_bray_dt$time_passed <- as.numeric(same_site_bray_dt$time_passed)
+
+same_site_bray_dt <- same_site_bray_dt %>% 
+  filter(time_passed >= 1) 
+```
+
+plot time passed vs bray-curtis within each site
+```{r}
+
+pal <- wes_palette("FantasticFox1", 10, type = "continuous")
+same_site_bray_dt$City_Site <- str_c(
+  same_site_bray_dt$City, ", ", same_site_bray_dt$Site)
+
+same_site_bray_dt %>%
+  mutate(City_Site = str_c(City.1, ", ", Site.1)) %>%
+  ggplot(aes(x=time_passed, y=value, color=City_Site)) +
+  geom_point(alpha=0.6, size = 2, stroke = 0) +
+  geom_smooth(se = F, alpha = 0.8, color = "darkgrey") +
+  scale_color_manual(values = pal) +
+  facet_wrap(vars(City.1, Site.1), scales = "free_x") +
+  labs(x = "days between sampling", y = "Bray-Curtis Dissimilarity") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "Off")
+
+ggsave(sprintf("%s/charts/bray-curtis_days_passed_by_site.pdf", find_rstudio_root_file()), width = 7, height = 6)
+
+```
+
+community distance "same week" for site in same vs different city
+```{r}
+all_nonself_bray_dt <- meta_long %>% 
+  filter(sampleID1 != sampleID2)
+
+all_nonself_bray_dt$time_passed <- difftime(
+  all_nonself_bray_dt$Date.1, all_nonself_bray_dt$Date.2, units = "days"
+  ) %>% 
+  gsub(" days", "", .) %>% gsub("-", "", .)
+all_nonself_bray_dt$time_passed <- as.numeric(all_nonself_bray_dt$time_passed)
+
+same_week_dt <- all_nonself_bray_dt %>%
+  filter(time_passed <= 7) %>%
+  mutate(site_compare = case_when(
+    Site.1 == Site.2 ~ 'Same Site',
+    Site.1 != Site.2 & City.1 == City.2 ~ 'Same City',
+    City.1 != City.2 ~ 'Different City',
+    TRUE ~ 'idk'
+  ))
+```
+
+plot same week data
+```{r}
+
+pal <- wes_palette("Cavalcanti1", 3, type = "continuous")
+
+stat.test_bray <- same_week_dt %>% 
+  wilcox_test(value ~ site_compare, paired = F) %>%
+  add_significance(p.col="p", output.col="p.signif")
+
+same_week_dt %>%
+  mutate(City_Site = str_c(City.1, ", ", Site.1)) %>%
+  ggplot(aes(factor(site_compare), value)) +
+  geom_violin(aes(fill = factor(site_compare)), draw_quantiles = c(0.25, 0.75), linetype = "dotted") +
+  geom_violin(fill="transparent", draw_quantiles = c(0.5)) +
+  stat_compare_means(label = "p.signif",
+                     comparisons = 
+                       list(c("Same Site", "Same City"), c("Same Site", "Different City"),
+                            c("Same City", "Different City"))) +
+  scale_fill_manual(values = pal) +
+  labs(y="Bray-Curtis Dissimilarity", x = "") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "Off")
+
+ggsave(sprintf("%s/charts/bray-curtis_same_week_across_sites.pdf", find_rstudio_root_file()), width = 3, height = 4.5)
+
+same_week_dt %>%
+  mutate(City_Site = str_c(City.1, ", ", Site.1)) %>%
+  ggplot(aes(x = site_compare, y = value, fill = site_compare)) +
+  geom_violin(aes(fill = factor(site_compare)), draw_quantiles = c(0.25, 0.75), linetype = "dotted") +
+  geom_violin(fill="transparent", draw_quantiles = c(0.5)) +
+  scale_fill_manual(values = pal) +
+  facet_wrap(vars(City.1, Site.1)) +
+  labs(y="Bray-Curtis Dissimilarity", x = "") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "Off")
+
+ggsave(sprintf("%s/charts/bray-curtis_same_week_facet_sites.pdf", find_rstudio_root_file()), width = 7, height = 7)
+
+```
+
+
+
+
