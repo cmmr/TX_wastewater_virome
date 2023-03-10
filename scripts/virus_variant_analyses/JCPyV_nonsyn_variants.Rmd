@@ -1,0 +1,316 @@
+---
+title: "compare all high-coverage samples for non-synonymous mutations in JC Polyomavirus vs GenBank Ref J02226.1"
+output: html_notebook
+---
+
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(gridExtra)
+library(dplyr)
+library(readxl)
+library(lubridate)
+library(wesanderson)
+library(tidyr)
+library(Rtsne)
+library(ggtree)
+library(ggnewscale)
+library(aplot)
+library(rprojroot)
+
+```
+
+set paths and filenames
+```{r}
+### files
+variant_table=sprintf(
+  "%s/data/all_JCPyV_genbank_J02226.1.nonsyn_variants.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+CDS_table=sprintf(
+  "%s/data/J02226.1_CDS_table1.tsv", 
+  find_rstudio_root_file())
+
+```
+
+load tables, format
+```{r}
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+
+nonsyn_dt <- fread(variant_table, sep = "\t", header = T)
+
+gene_table <- fread(CDS_table, header = T, sep = "\t")
+
+nonsyn_dt <- nonsyn_dt %>% 
+  mutate(mut_cov = round(position_cov * mut_prop)) %>%
+  distinct() %>%
+  filter(mut_cov >= 5)
+
+nonsyn_info_dt <- merge(nonsyn_dt, gene_table, by = "gene_name", allow.cartesian=TRUE)
+
+mut_describe_dt <- nonsyn_info_dt %>%
+  mutate(gene_codon_num = ceiling((genome_position-gene_start)/3)) %>%
+  mutate(
+    mutation_description = 
+      paste(genome_position, gene_tag, 
+            gene_codon_num, ref_AA, mut_AA, 
+            sep = "__")
+    ) %>%
+  subset(select = c("sample_ID", "mut_prop", "mutation_description")) %>%
+  distinct(sample_ID, mutation_description, .keep_all = TRUE)
+
+wide_mut_dt <- mut_describe_dt %>%
+  group_by(mutation_description, sample_ID) %>%
+  mutate(row = row_number()) %>%
+  pivot_wider(names_from = mutation_description, 
+              values_from = mut_prop, values_fill = 0) %>%
+  select(-row)
+
+sampleID_l <- wide_mut_dt$sample_ID
+
+wide_mut_dt <- wide_mut_dt %>% subset(select = -sample_ID)
+
+
+```
+
+
+make tSNE plot
+```{r}
+
+tephi_prcomp1 <- prcomp(wide_mut_dt)
+
+emb <- Rtsne::Rtsne(tephi_prcomp1$x[,1:10], perplexity = 10, exaggeration=4)
+
+embb <- emb$Y
+
+rownames(embb) <- sampleID_l
+
+embb_df <- as.data.frame(embb)
+
+embb_dt <- setDT(embb_df, keep.rownames = "sample_ID")
+
+embb_dt <- merge(embb_dt, meta_dt, 
+                 by ="sample_ID")
+embb_dt$City_Site <- str_c(embb_dt$City, ", ", embb_dt$Site)
+
+embb_dt$Date <- as.Date(embb_dt$Date, , "%m-%d-%Y")
+
+pal <- wes_palette("Zissou1", 2, type = "continuous")
+
+embb_dt %>%
+  ggplot(aes(x=V1, y=V2, color=City, shape = City_Site)) +
+  geom_point(size = 3, alpha = 0.8) +
+  scale_shape_manual(values=c(15, 16, 17, 18, 3, 4 ,8, 9, 11, 13, 1))+
+  scale_color_manual(values = pal) +
+  theme_bw() +
+  labs(x="", y="")
+
+ggsave(sprintf("%s/charts/all_JCPyV_tSNE_site_city.pdf", find_rstudio_root_file()), width = 5.5, height = 4)
+
+```
+
+bray-curtis distance
+```{r}
+## format wide appropriately
+wide_mut_4dist <- mut_describe_dt %>%
+  group_by(mutation_description, sample_ID) %>%
+  mutate(row = row_number()) %>%
+  pivot_wider(names_from = mutation_description, values_from = mut_prop, values_fill = 0) %>%
+  select(-row)
+
+sampleID_d <- wide_mut_4dist$sample_ID
+
+wide_mut_4dist <- wide_mut_4dist %>% subset(select = -sample_ID)
+
+rownames(wide_mut_4dist) <- sampleID_d
+
+## hclust
+
+
+clusters <- hclust(dist(wide_mut_4dist))
+plot(clusters)
+```
+
+make a ggtree based on bray-curtis hclust
+```{r}
+clus <- cutree(clusters, 8)
+
+g <- split(names(clus), clus)
+
+
+pp <- ggtree(clusters)
+
+
+clades <- sapply(g, function(n) MRCA(pp, n))
+p <- groupClade(pp, clades, group_name='subtree') + aes(color=subtree)
+#p
+
+p %<+% meta_dt + 
+  #layout_dendrogram() + 
+  geom_tippoint(aes(fill=factor(City), x=x-0.01), 
+                size=2, shape=21, color='black', alpha = 0.5) + 
+  geom_tippoint(aes(fill=factor(Site), x=x+0.01), 
+                size=2, shape=21, color='black', alpha = 0.5) +
+  #geom_tiplab(hjust=-0.5, offset=-0.1, show.legend=FALSE) + 
+  scale_color_brewer(palette='Set1', breaks=1:4) +
+  theme_dendrogram(plot.margin=margin(6,6,80,6)) +
+  theme(legend.position=c(0.1, 0.6))
+```
+
+make little gene dt
+```{r}
+little_gene <- mut_describe_dt %>%
+  group_by(mutation_description) %>%
+  filter(n() > 5 & n() < 50) %>%
+  ungroup() %>%
+  distinct(mutation_description)
+
+setDT(little_gene)
+little_gene[, c("genome_position", "gene_name", "gene_codon_num", "ref_AA", "mut_AA") := tstrsplit(mutation_description, "__", fixed=TRUE)]
+
+
+```
+
+```{r}
+## format wide appropriately
+wide_mut_heat <- mut_describe_dt %>%
+  group_by(mutation_description) %>%
+  filter(n() > 5 & n() < 50) %>%
+  ungroup() %>%
+  group_by(mutation_description, sample_ID) %>%
+  mutate(row = row_number()) %>%
+  pivot_wider(names_from = mutation_description, values_from = mut_prop, values_fill = 0) %>%
+  select(-row)
+
+sampleID_h <- wide_mut_heat$sample_ID
+
+wide_mut_heat <- wide_mut_heat %>% subset(select = -sample_ID)
+
+rownames(wide_mut_heat) <- sampleID_h
+
+#wide_mut_heat %>% select(sort(peek_vars()))
+```
+
+fancy tree
+```{r}
+
+### redraw tree with tip labels
+pal <- wes_palette("Zissou1", 2, type = "continuous")
+pm <- p %<+% meta_dt +
+  scale_color_brewer(palette='Set2', breaks=1:8) + 
+  new_scale_fill() +
+  theme(legend.position = "none") +
+  labs(y="Samples")
+
+### label bar for mutation genes
+pal <- wes_palette("IsleofDogs1", 6, type = "continuous")
+labels <- little_gene %>%
+  arrange(desc(genome_position)) %>%
+  ggplot(aes(mutation_description, y=1, fill=gene_name)) + 
+  geom_tile() +
+  scale_fill_manual(values = pal, name="Gene") +
+  theme_void() +
+  theme(legend.text=element_text(size=5)) +
+  guides(fill = guide_legend(override.aes = list(size=2)))
+labels
+
+### label bars for mutation info
+mut_pos <- little_gene %>%
+  ggplot(aes(mutation_description, y=1)) + 
+  geom_tile() +
+  geom_text(aes(label=gene_codon_num), size = 2, angle = 90, color = "white") + 
+  theme_void() 
+mut_pos
+
+pal <- wes_palette("FantasticFox1", 21, type = "continuous")
+
+mut_two <- little_gene %>%
+  subset(select = c("mut_AA", "ref_AA", "mutation_description")) %>%
+  mutate(mut_AA = gsub("STOP", "*", mut_AA),
+         ref_AA = gsub("STOP", "*", ref_AA)) %>%
+  pivot_longer(!mutation_description, names_to = "orig_mut", values_to = "AA") %>%
+  ggplot(aes(mutation_description, y=orig_mut, fill=factor(AA))) + 
+  geom_tile() +
+  scale_fill_manual(values = pal) +
+  geom_text(aes(label=AA), size = 2) + 
+  theme_void() +
+  theme(legend.position = "none")
+mut_two
+
+### label bars for date
+as.Date_origin <- function(x){
+  as.Date(x, origin = '1970-01-01')
+}
+samp_date <- embb_dt %>%
+  ggplot(aes(sample_ID, x=1, fill=as.integer(Date))) + 
+  geom_tile() +
+  scale_fill_gradient(low = "pink",
+  high = "#5f3e2b", labels=as.Date_origin, name="Date") +
+  theme_void() 
+samp_date
+
+pal <- wes_palette("Zissou1", 2, type = "continuous")
+samp_city <- embb_dt %>%
+  ggplot(aes(sample_ID, x=1, fill=City)) + 
+  geom_tile() +
+  scale_fill_manual(values = pal, name="City") +
+  theme_void() 
+samp_city
+
+
+
+### cluster mutations by co-occurence
+clusters_t <- hclust(dist(wide_mut_heat %>% as.matrix() %>% t()))
+
+top1 <- ggtree(clusters_t) + 
+  layout_dendrogram() +
+  labs(title="AA Variant", size = 5)
+
+top1
+
+
+### long table to be compatible with ggplot
+long_mut_heat <- mut_describe_dt %>%
+  group_by(mutation_description) %>%
+  filter(n() > 5 & n() < 50) %>%
+  ungroup() %>%
+  complete(sample_ID, mutation_description) %>%
+  replace(is.na(.), 0)
+
+
+### heatmap/tilemap
+heat1 <- long_mut_heat %>%
+  ggplot(aes(x=mutation_description, y = sample_ID, fill = mut_prop)) +
+  geom_tile() +
+  labs(x = "", y = "") +
+  scale_fill_viridis_c(option="A", name="variant\nfrequency", na.value = "black") +
+  theme(
+  axis.text.x = element_blank(),
+  axis.text.y = element_blank(),
+  axis.ticks = element_blank(),
+  plot.margin = unit(c(0.1,0.1,0.1,0.1), "cm"))
+heat1
+
+### using aplot to put it all together
+pm_labs <- heat1 %>%
+  insert_left(samp_date, width = 0.04) %>%
+  insert_left(samp_city, width = 0.04) %>%
+  insert_left(pm, width = 0.2) %>%
+  #insert_top(mut_var, height=.02) %>%
+  insert_top(mut_two, height=.03) %>%
+  insert_top(mut_pos, height=.03) %>%
+  insert_top(labels, height=.02) %>%
+  insert_top(top1, height=.03)
+pm_labs
+
+ggsave(pm_labs, file = sprintf("%s/charts/JCPyV_ggtree_heatmap2.pdf", find_rstudio_root_file()), width = 8, height = 6)
+
+```
+
+
+

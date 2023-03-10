@@ -1,0 +1,114 @@
+---
+title: "shannon diversity by site, population size"
+output: html_notebook
+---
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(rprojroot)
+library(vegan)
+library(wesanderson)
+```
+
+set paths and filenames
+```{r}
+### files
+virome_table=sprintf(
+  "%s/data/wastewater_virome_abundance_table1.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+population_table=(
+  sprintf("%s/data/wastewater_cachment_area_population.tsv", 
+          find_rstudio_root_file()))
+
+```
+
+load virome table, make wide
+```{r}
+virome_dt <- fread(virome_table, sep = "\t", header = T )
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+pop_dt <- fread(population_table, sep = "\t", header = T )
+
+seqname_sID_wide_dt <- 
+  virome_dt %>% 
+  subset(select = c("sequence_name", "sample_ID", "RPKMF")) %>%
+  distinct(sequence_name, sample_ID, RPKMF) %>%
+  pivot_wider(names_from = sequence_name, values_from = RPKMF, values_fill = 0)
+
+sampleID_l <- seqname_sID_wide_dt$sample_ID
+
+seqname_sID_wide_dt <- seqname_sID_wide_dt %>% subset(select = -sample_ID)
+```
+
+Calculate shannon diversity
+```{r}
+shannon_d <- vegan::diversity(seqname_sID_wide_dt, index = "shannon")
+
+sample_diversity <- cbind(sampleID_l, shannon_d)
+sample_diversity <- as.data.frame(sample_diversity)
+setDT(sample_diversity)
+
+sample_diversity_meta <- merge(sample_diversity, meta_dt, by.x = "sampleID_l", by.y = "sample_ID")
+
+sample_diversity_meta$City_Site <- str_c(sample_diversity_meta$City, ", ", sample_diversity_meta$Site)
+
+sample_diversity_meta$Date <- as.Date(sample_diversity_meta$Date, , "%m-%d-%Y")
+
+sample_diversity_meta$shannon_d <- as.numeric(sample_diversity_meta$shannon_d)
+#data(BCI, BCI.env)
+hist(sample_diversity_meta$shannon_d)
+```
+
+plot diversity by site
+```{r}
+custom_scale <- wes_palette("Darjeeling1", 13, type = "continuous")
+
+sample_diversity_meta %>% 
+  ggplot(aes(x = City_Site, y = shannon_d, fill = City_Site)) +
+  geom_boxplot(outlier.size = 0) +
+  geom_point(pch = 21, position = position_jitterdodge()) +
+  scale_fill_manual(values = custom_scale[c(3:6,8:13)]) +
+  facet_wrap(vars(City), scales = "free_x") +
+  theme_bw() +
+  labs(x = "", y = "Shannon Diversity") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "Off")
+  
+ggsave(sprintf("%s/charts/shannon_diversity_by_site.pdf", find_rstudio_root_file()), width = 5, height = 5)
+
+```
+
+plot average shannon diversity by catchment population size
+```{r}
+pal <- wes_palette("Zissou1", 2, type = "continuous")
+
+merge(sample_diversity_meta, pop_dt, by = "Site") %>%
+  group_by(City, Site, Population) %>%
+  summarize(average_shan = mean(shannon_d)) %>%
+  ungroup() %>%
+  ggplot(aes(x= Population, y = average_shan, color = City)) +
+  geom_point(size = 5, alpha = 0.7) + 
+  geom_smooth(method = "lm", se = F) + 
+  scale_color_manual(values = pal) +
+  labs(y = "Average Shannon Diversity") +
+  theme_bw()
+
+ggsave(sprintf("%s/charts/average_shannon_diversity_by_population.pdf", find_rstudio_root_file()), width = 4, height = 3)
+
+```
+
+
+
+
+
+
+
+

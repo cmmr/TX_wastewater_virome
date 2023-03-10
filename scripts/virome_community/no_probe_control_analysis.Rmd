@@ -1,0 +1,71 @@
+---
+title: "compare no-probe vs with-probe wastewater samples alignment to virome DB v2.0.2"
+output: html_notebook
+---
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(dplyr)
+library(tidyr)
+library(ggrepel)
+```
+
+set paths and filenames
+```{r}
+### files
+probe_align_table=sprintf(
+  "%s/data/no-probe_with-TWIST-probe_control_read_alignment_table1.tsv", 
+  find_rstudio_root_file())
+
+
+```
+
+load data
+```{r}
+
+probe_control_dt <- fread(probe_align_table, header = T, sep = "\t")
+
+colnames(probe_control_dt) <- c("sample_ID", "np_aligned", "wp_aligned", "np_filtered", "wp_filtered")
+```
+
+plot paired
+```{r}
+
+fold_enrich<- probe_control_dt %>%
+  mutate(np_percent_aligned = np_aligned/np_filtered) %>%
+  mutate(wp_percent_aligned = wp_aligned/wp_filtered) %>%
+  mutate(fold_enrich = round(wp_percent_aligned/np_percent_aligned)) %>%
+  summarize(fold = round(mean(fold_enrich))) %>%
+  mutate(fold = paste0("Average\nenrichment =\n", fold, "X"))
+
+
+probe_control_dt %>%
+  mutate(np_percent_aligned = np_aligned/np_filtered) %>%
+  mutate(wp_percent_aligned = wp_aligned/wp_filtered) %>%
+  ggplot() +
+  geom_boxplot(aes(x = "no-probe\ncontrol", y = np_percent_aligned), fill = "yellow") +
+  geom_boxplot(aes(x = "with\nTWIST\nprobes", y = wp_percent_aligned), fill = "#2E8289") +
+  geom_segment(aes(x = "no-probe\ncontrol", y = np_percent_aligned, xend = "with\nTWIST\nprobes", yend =wp_percent_aligned), color = "grey", alpha = 0.6) +
+  geom_jitter(aes(x = "no-probe\ncontrol", y = np_percent_aligned), color = "gold", stroke = 0.5, width = 0, size = 3) +
+  geom_jitter(aes(x = "with\nTWIST\nprobes", y = wp_percent_aligned), color = "#91D5DE", stroke = 0.5, width = 0, size = 3) +
+  geom_text(data = fold_enrich, x = "no-probe\ncontrol", y = 0.02, label = fold_enrich$fold) +
+  labs(x = "", y = "percentage of reads\naligned to virus genomes") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggsave(sprintf("%s/charts/no_probe_vs_probe_read_alignment.pdf", find_rstudio_root_file()), width = 3, height = 3)
+
+```
+
+
+
+
+
+
+
+
+

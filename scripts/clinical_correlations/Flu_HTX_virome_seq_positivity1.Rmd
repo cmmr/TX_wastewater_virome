@@ -1,0 +1,140 @@
+---
+title: "Compare Influenza percent positivity and virome seq abundance in Houston, TX , May 2022 - February 2023"
+output: html_notebook
+---
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(dplyr)
+library(readxl)
+library(lubridate)
+library(tidyquant)
+library(tidyr)
+library(ggpubr)
+library(rstatix)
+
+```
+
+set paths and filenames
+```{r}
+### files
+pathogen_table=sprintf(
+  "%s/data/wastewater_specific_pathogen_abundance_table1.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+harris_flu_table=sprintf(
+  "%s/data/flu_discharge_harris_2022_34-2023_05.csv", 
+  find_rstudio_root_file())
+
+```
+
+load pathogen table, metadata table, format by week
+```{r}
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+
+
+flu_virome_seq_dt <- fread(pathogen_table, sep = "\t", header = T) %>%
+  filter(Virus_name == "Influenza A virus H1N1" | Virus_name ==  "Influenza A virus H3N2") #%>%
+  #mutate(RPKMF = case_when(Detection == "below_detectable_level" ~ 0,
+  #                         TRUE ~ RPKMF )) %>%
+
+
+flu_virome_seq_dt %>% distinct(Virus_name)
+
+flu_HTX_week_dt  <- merge(flu_virome_seq_dt, meta_dt, by = "sample_ID") %>%
+  filter(City == "Houston, TX") %>%
+  mutate(Week = floor_date(Date, "weeks", week_start = 1)) %>%
+  group_by(Week, Virus_name) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  group_by(Week) %>%
+  summarize(RPKMF = sum(RPKMF)) %>%
+  filter(Week > '2022-06-01')
+```
+
+Note: I had to extract the data from the chart on the pdf file from 
+Harris County Public Health, page 10
+Weekly Percentage of Visits with Discharge Diagnosed Influenza by Flu Season
+load flu percent positivity data
+```{r}
+flu_positivity_dt <- fread(harris_flu_table, header = T, sep = ",")
+
+flu_positivity_dt <- flu_positivity_dt[, c("Year", "Weeky") := tstrsplit(Week, "/", fixed=TRUE)]
+flu_positivity_dt$Week <- 
+  as.Date(lubridate::parse_date_time(
+    paste(flu_positivity_dt$Year, flu_positivity_dt$Weeky, 1, sep="/"),'Y/W/w'
+    ), 
+    format = "%Y - %m - %d")
+
+flu_positivity_dt <- flu_positivity_dt %>% 
+  subset( select = c(Week, percent_positive))
+
+
+ww_weeks <- flu_HTX_week_dt %>% select(Week)
+
+## adding preceding weeks where Flu Positivity was ~0
+flu_positivity_dt <- merge(ww_weeks, flu_positivity_dt, 
+                           by = "Week", all.x = T) %>%
+  replace(is.na(.), 0)
+
+
+```
+
+plot Flu wastewater vs percent positive
+```{r}
+ggplot() + 
+  geom_point(data = flu_HTX_week_dt, 
+            aes(x=Week, y=12*(RPKMF), color="Virome Seq"), 
+            alpha = 0.2, size = 1) +
+  geom_point(data = flu_positivity_dt, 
+            aes(x=Week, y=percent_positive, color="Positivity"), 
+            alpha = 0.2, size = 1) +
+  geom_ma(data = flu_HTX_week_dt, 
+          aes(x=Week, y=12*(RPKMF), color="Virome Seq"), 
+          ma_fun = SMA, n = 3, size = 1.5) +
+  geom_ma(data = flu_positivity_dt, 
+          aes(x=Week, y=percent_positive, color="Positivity"), 
+          ma_fun = SMA, n = 3, linetype = "solid", size = 1.5) +
+  scale_color_manual(name='Data Type',
+                     breaks=c('Virome Seq', 'Positivity'),
+                     values=c('Virome Seq'='#4B4E55', 'Positivity'='#62589F')) +
+  labs(x = "Date", title = "Houston, TX Influenza Measurements") +
+  theme_bw() +
+  scale_y_continuous(name = "Weekly Patient Discharge % Positivity",
+    sec.axis = sec_axis( trans=~./12, name="Wastewater Sequencing \nAbundance (RPKMF)", label=scales::comma)
+  ) +
+  scale_x_date(date_labels="%Y-%b",date_breaks  ="1 month")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggsave(sprintf("%s/charts/Influenza_HTX_virome_vs_cases1.pdf", find_rstudio_root_file()), width = 5, height = 4)
+
+merge_flu_dt <- merge(flu_HTX_week_dt, flu_positivity_dt, by = "Week")
+
+cor(merge_flu_dt$RPKMF, merge_flu_dt$percent_positive)
+```
+
+plot scatter
+```{r}
+merge_flu_dt %>%
+  ggplot(aes(x = percent_positive, y = RPKMF)) +
+  geom_point(color = "#D58A60") + 
+  geom_smooth(se = F, method = "lm", color = "#D58A60") +
+  labs(y = "Wastewater Sequencing \nAbundance (RPKMF)", 
+       x = "Weekly Patient \nDischarge % Positivity") +
+  stat_cor(label.x = 0.3, color = "#D58A60") +
+  theme_bw()
+
+ggsave(sprintf("%s/charts/Flu_HTX_virome_vs_cases_wave_scatter1.pdf", find_rstudio_root_file()), width = 3, height = 3)
+
+```
+
+
+
+
+
+
+

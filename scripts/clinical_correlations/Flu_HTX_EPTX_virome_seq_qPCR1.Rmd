@@ -1,0 +1,127 @@
+---
+title: "Compare Flu A qPCR and virome seq abundance in Houston, TX and El Paso, TX , July 2022 - February 2023"
+output: html_notebook
+---
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(dplyr)
+library(readxl)
+library(lubridate)
+library(tidyquant)
+library(tidyr)
+library(ggpubr)
+library(rstatix)
+library(wesanderson)
+
+```
+
+set paths and filenames
+```{r}
+### files
+pathogen_table=sprintf(
+  "%s/data/wastewater_specific_pathogen_abundance_table1.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+flu_qpcr_table=sprintf(
+  "%s/data/FluA_RT_PCR_data_Jul10_2022_to_Feb2_2023.tsv", 
+  find_rstudio_root_file())
+
+```
+
+load pathogen table, metadata table, format by week
+```{r}
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+
+
+flu_virome_seq_dt <- fread(pathogen_table, sep = "\t", header = T) %>%
+  filter(Virus_name == "Influenza A virus H1N1" | Virus_name ==  "Influenza A virus H3N2")
+  
+flu_virome_week_dt  <- merge(flu_virome_seq_dt, meta_dt, by = "sample_ID") %>%
+  mutate(Week = floor_date(Date, "weeks", week_start = 1)) %>%
+  group_by(Week, City, Virus_name) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  group_by(Week, City) %>%
+  summarize(RPKMF = sum(RPKMF)) %>%
+  filter(Week > '2022-07-10')
+
+```
+
+load fluA qPCR table, group by week, city
+```{r}
+flu_qpcr_week_dt <- fread(flu_qpcr_table, sep = "\t", header = T) %>%
+  mutate(Week = floor_date(Date, "weeks", week_start = 1)) %>%
+  group_by(Week, City) %>%
+  summarize(Genome_Copies = mean(Genome_Copies)) %>%
+  filter(Week > '2022-07-10')
+
+
+
+```
+
+plot SARS-Cov2 data as point plot and moving average
+```{r}
+ggplot() + 
+  geom_point(data = flu_virome_week_dt, 
+            aes(x=Week, y=300000*(RPKMF), color="Virome Seq"), 
+            alpha = 0.2, size = 1) +
+  geom_point(data = flu_qpcr_week_dt, 
+            aes(x=Week, y=Genome_Copies, color="qPCR"), 
+            alpha = 0.2, size = 1) +
+  geom_ma(data = flu_virome_week_dt, 
+          aes(x=Week, y=300000*(RPKMF), color="Virome Seq"), 
+          ma_fun = SMA, n = 3, size = 1.5) +
+  geom_ma(data = flu_qpcr_week_dt, 
+          aes(x=Week, y=Genome_Copies, color="qPCR"), 
+          ma_fun = SMA, n = 3, linetype = "solid", size = 1.5) +
+  scale_color_manual(name='Data Type',
+                     breaks=c('Virome Seq', 'qPCR'),
+                     values=c('Virome Seq'='#4B4E55', 'qPCR'='#9FC2B2')) +
+  facet_wrap(vars(City), ncol = 1, scales = "free_y") +
+  labs(x = "Date", title = "Houston, TX Influenza A Measurements") +
+  theme_bw() +
+  scale_y_continuous(name = "Avg. Genome Copies",
+    sec.axis = sec_axis( trans=~./300000, name="Avg. Wastewater Sequencing Abundance (RPKMF)", label=scales::comma)
+  ) +
+  scale_x_date(date_labels="%Y-%b",date_breaks  ="1 month")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+
+ggsave(sprintf("%s/charts/Flu_HTX_EPTX_virome_vs_qPCR.pdf", find_rstudio_root_file()), width = 5, height = 6)
+```
+
+scatter and correlation
+```{r}
+merge_dt <- merge(flu_virome_week_dt, flu_qpcr_week_dt, by = c("Week", "City"))
+
+pal <- wes_palette("Zissou1", 2, type = "continuous")
+
+merge_dt %>%
+  ggplot(aes(x = Genome_Copies, y = RPKMF, color = City)) +
+  geom_point() + 
+  geom_smooth(se = F, method = "lm") +
+  scale_color_manual(values = pal) +
+  labs(y = "Avg. Wastewater Sequencing \nAbundance (RPKMF)", 
+       x = "Avg. Genome Copies") +
+  stat_cor(label.x = 3) +
+  theme_bw()
+  
+ggsave(sprintf("%s/charts/Flu_HTX_EPTX_virome_vs_qPCR_scatter1.pdf", find_rstudio_root_file()), width = 4, height = 3)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

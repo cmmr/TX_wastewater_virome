@@ -1,0 +1,103 @@
+---
+title: "Look at different virus prevalence by City"
+output: html_notebook
+---
+
+#NOTE:
+
+Because the El Paso WWTPs have larger catchment areas and their alpha diversity is higher, we expect that there will be greater prevalence of most things
+
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(dplyr)
+library(lubridate)
+library(wesanderson)
+library(tidyr)
+library(rprojroot)
+
+```
+
+set paths and filenames
+```{r}
+### files
+virome_table=sprintf(
+  "%s/data/wastewater_virome_abundance_table1.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+
+```
+
+merge abundance and metadata tables
+```{r}
+virome_dt <- fread(virome_table, sep = "\t", header = T )
+
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+
+virome_met_dt <- merge(virome_dt, meta_dt, by = "sample_ID")
+
+virome_met_dt$City_Site <- str_c(virome_met_dt$City, ", ", virome_met_dt$Site)
+
+```
+
+```{r}
+
+city_prev_dt <- virome_met_dt %>%
+  group_by(City) %>%
+  mutate(total_samples = n_distinct(sample_ID)) %>%
+  ungroup() %>%
+  group_by(sequence_name, City, total_samples) %>%
+  summarize(n = n_distinct(sample_ID)) %>%
+  mutate(freq = n / total_samples) %>%
+  ungroup() %>%
+  select(sequence_name, City, freq) %>%
+  pivot_wider(names_from = City, values_from = freq, values_fill = 0)
+
+colnames(city_prev_dt) <- c("sequence_name", "EPTX", "HTX")
+
+
+
+city_prev_dt %>%
+  ggplot(aes(x = EPTX, y = HTX, size = (EPTX+HTX))) +
+  geom_point(alpha = 0.5)
+
+tax_table <- virome_dt %>%
+  select(c("kingdom", "phylum", "class", "order", "family", "genus", "species", "strain", "sequence_name"))
+
+
+city_prev_tax_dt <-merge(city_prev_dt, tax_table, by = "sequence_name")
+```
+
+```{r}
+
+prevp <- city_prev_tax_dt %>%
+  filter(family != "NA") %>%
+  ggplot(aes(x = EPTX, y = HTX, size = (EPTX+HTX))) +
+  geom_point(aes(color = family), alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dotted") +
+  facet_wrap(vars(family)) +
+  theme_bw() +
+  labs(x = "El Paso, TX prevalence", x = "Houston, TX prevalence") +
+  theme(legend.position = "Off",
+         axis.text.x = element_text(angle = 90, hjust = -0.2))
+
+prevp
+
+ggsave(prevp, file = sprintf("%s/charts/families_by_city.pdf", find_rstudio_root_file()), width = 6.5, height = 6.5)
+
+```
+
+
+
+
+
+
+
+
+
+
