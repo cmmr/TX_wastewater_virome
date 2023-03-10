@@ -13,6 +13,8 @@ library(readxl)
 library(lubridate)
 library(tidyquant)
 library(tidyr)
+library(ggpubr)
+library(rstatix)
 
 ```
 
@@ -99,10 +101,10 @@ ggplot() +
             alpha = 0.2, size = 1) +
   geom_ma(data = mpox_HTX_week_dt, 
           aes(x=Week, y=6000*(RPKMF), color="Virome Seq"), 
-          ma_fun = SMA, n = 3, size = 4) +
+          ma_fun = SMA, n = 3, size = 1.5) +
   geom_ma(data = monkeypox_c_HTX_week, 
           aes(x=Week, y=Rate, color="Case Rate"), 
-          ma_fun = SMA, n = 3, linetype = "solid", size = 4) +
+          ma_fun = SMA, n = 3, linetype = "solid", size = 1.5) +
   scale_color_manual(name='Data Type',
                      breaks=c('Virome Seq', 'Case Rate'),
                      values=c('Virome Seq'='#4B4E55', 'Case Rate'='#ACC2CF')) +
@@ -132,6 +134,7 @@ merge_mpox_dt %>%
   geom_smooth(se = F, method = "lm", color = "#678096") +
   labs(y = "Wastewater Sequencing \nAbundance (RPKMF)", 
        x = "Avg. Daily Case Rate") +
+  stat_cor(label.x = 3, color = "#678096") +
   theme_bw()
 
 ggsave(sprintf("%s/charts/Mpox_HTX_virome_vs_cases_wave_scatter1.pdf", find_rstudio_root_file()), width = 3, height = 3)

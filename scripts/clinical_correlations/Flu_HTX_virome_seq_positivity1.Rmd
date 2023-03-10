@@ -13,6 +13,8 @@ library(readxl)
 library(lubridate)
 library(tidyquant)
 library(tidyr)
+library(ggpubr)
+library(rstatix)
 
 ```
 
@@ -93,10 +95,10 @@ ggplot() +
             alpha = 0.2, size = 1) +
   geom_ma(data = flu_HTX_week_dt, 
           aes(x=Week, y=12*(RPKMF), color="Virome Seq"), 
-          ma_fun = SMA, n = 3, size = 4) +
+          ma_fun = SMA, n = 3, size = 1.5) +
   geom_ma(data = flu_positivity_dt, 
           aes(x=Week, y=percent_positive, color="Positivity"), 
-          ma_fun = SMA, n = 3, linetype = "solid", size = 4) +
+          ma_fun = SMA, n = 3, linetype = "solid", size = 1.5) +
   scale_color_manual(name='Data Type',
                      breaks=c('Virome Seq', 'Positivity'),
                      values=c('Virome Seq'='#4B4E55', 'Positivity'='#62589F')) +
@@ -123,6 +125,7 @@ merge_flu_dt %>%
   geom_smooth(se = F, method = "lm", color = "#D58A60") +
   labs(y = "Wastewater Sequencing \nAbundance (RPKMF)", 
        x = "Weekly Patient \nDischarge % Positivity") +
+  stat_cor(label.x = 0.3, color = "#D58A60") +
   theme_bw()
 
 ggsave(sprintf("%s/charts/Flu_HTX_virome_vs_cases_wave_scatter1.pdf", find_rstudio_root_file()), width = 3, height = 3)

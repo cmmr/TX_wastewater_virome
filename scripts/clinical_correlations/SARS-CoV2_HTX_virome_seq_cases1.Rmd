@@ -13,6 +13,8 @@ library(readxl)
 library(lubridate)
 library(tidyquant)
 library(tidyr)
+library(ggpubr)
+library(rstatix)
 
 ```
 
@@ -93,10 +95,10 @@ ggplot() +
             alpha = 0.2, size = 1) +
   geom_ma(data = SARS_HTX_week_dt, 
           aes(x=Week, y=1200*(RPKMF), color="Virome Seq"), 
-          ma_fun = SMA, n = 3, size = 4) +
+          ma_fun = SMA, n = 3, size = 1.5) +
   geom_ma(data = range_epi_dt_week, 
           aes(x=Week, y=Rate, color="Case Rate"), 
-          ma_fun = SMA, n = 3, linetype = "solid", size = 4) +
+          ma_fun = SMA, n = 3, linetype = "solid", size = 1.5) +
   geom_vline(xintercept = as.Date('2022-11-01'), color = "grey60") +
   geom_text(aes(x= as.Date('2022-11-01'), y = 500, label = "Summer Wave\n"), angle = 90) +
   geom_text(aes(x= as.Date('2022-11-01'), y = 500, label = "\nWinter Wave"), angle = 90) +
@@ -147,6 +149,7 @@ merge_sars_dt %>%
   scale_color_manual(values = c("#466D53", "#83CDC0")) +
   labs(y = "Wastewater Sequencing \nAbundance (RPKMF)", 
        x = "Avg. Daily Case Rate (PCR test)") +
+  stat_cor(label.x = 3) +
   theme_bw()
   
 ggsave(sprintf("%s/charts/SARS-CoV2_HTX_virome_vs_cases_wave_scatter1.pdf", find_rstudio_root_file()), width = 4, height = 3)
