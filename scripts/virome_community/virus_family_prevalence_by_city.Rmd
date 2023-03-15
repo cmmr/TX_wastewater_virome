@@ -77,12 +77,15 @@ city_prev_tax_dt <-merge(city_prev_dt, tax_table, by = "sequence_name")
 
 prevp <- city_prev_tax_dt %>%
   filter(family != "NA") %>%
-  ggplot(aes(x = EPTX, y = HTX, size = (EPTX+HTX))) +
-  geom_point(aes(color = family), alpha = 0.5) +
+  ungroup() %>%
+  ggplot() +
+  geom_point(aes(x = EPTX, y = HTX, size = (HTX+EPTX), fill = family), 
+             alpha = 0.2, stroke = 0, shape = 21, color = "black") +
+  scale_size(range = c(0.1, 5)) +
   geom_abline(intercept = 0, slope = 1, linetype = "dotted") +
-  facet_wrap(vars(family)) +
+  facet_wrap(~family) +
   theme_bw() +
-  labs(x = "El Paso, TX prevalence", x = "Houston, TX prevalence") +
+  labs(x = "El Paso, TX prevalence", y = "Houston, TX prevalence") +
   theme(legend.position = "Off",
          axis.text.x = element_text(angle = 90, hjust = -0.2))
 
