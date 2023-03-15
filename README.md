@@ -20,9 +20,11 @@ TX_wastewater_virome/
 └───scripts/
 │   └───virome_community/
 │       │   some_scripts.Rmd
-│   └───virus_variants/
+│   └───virus_variant_analyses/
 │       │   some_scripts.Rmd
 │   └───clinical_correlations/
+│       │   some_scripts.Rmd
+│   └───maps/
 │       │   some_scripts.Rmd
 │
 └───data/
