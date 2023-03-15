@@ -27,7 +27,7 @@ set paths and filenames
 ```{r}
 ### files
 variant_table=sprintf(
-  "%s/data/all_astrovirus_MLB1.REF.H7HGKF.ivar.nonsyn_variants.tsv", 
+  "%s/data/all_astrovirus_MLB1.REF.H7HGKF.ivar.nonsyn_variants2.tsv", 
   find_rstudio_root_file())
 metadata_table=sprintf(
   "%s/data/wastewater_sample_metadata_table1.tsv", 
@@ -107,7 +107,7 @@ embb_dt %>%
   scale_shape_manual(values=c(15, 16, 17, 18, 3, 4 ,8, 9, 11, 13, 1))+
   scale_color_manual(values = pal) +
   theme_bw() +
-  labs(x="", y="")
+  labs(x="tSNE-1", y="tSNE-2")
 
 ggsave(sprintf("%s/charts/all_astro_MLB1_tSNE_site_city.pdf", find_rstudio_root_file()), width = 5.5, height = 4)
 
@@ -165,7 +165,7 @@ make little gene dt
 ```{r}
 little_gene <- mut_describe_dt %>%
   group_by(mutation_description) %>%
-  filter(n() > 15) %>%
+  filter(n() > 20 & n() < 160 ) %>%
   ungroup() %>%
   distinct(mutation_description)
 
@@ -179,7 +179,7 @@ little_gene[, c("genome_position", "gene_name", "gene_codon_num", "ref_AA", "mut
 ## format wide appropriately
 wide_mut_heat <- mut_describe_dt %>%
   group_by(mutation_description) %>%
-  filter(n() > 15) %>%
+  filter(n() > 20 & n() < 160 ) %>%
   ungroup() %>%
   group_by(mutation_description, sample_ID) %>%
   mutate(row = row_number()) %>%
@@ -192,7 +192,7 @@ wide_mut_heat <- wide_mut_heat %>% subset(select = -sample_ID)
 
 rownames(wide_mut_heat) <- sampleID_h
 
-wide_mut_heat %>% select(sort(peek_vars()))
+#wide_mut_heat %>% select(sort(peek_vars()))
 ```
 
 fancy tree
@@ -274,7 +274,7 @@ top1
 ### long table to be compatible with ggplot
 long_mut_heat <- mut_describe_dt %>%
   group_by(mutation_description) %>%
-  filter(n() > 15) %>%
+  filter(n() > 20 & n() < 160 ) %>%
   ungroup() %>%
   complete(sample_ID, mutation_description) %>%
   replace(is.na(.), 0)

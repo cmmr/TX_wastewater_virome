@@ -1,0 +1,90 @@
+---
+title: "analyze various coverage cut-offs for genomes/segments per sample"
+output: html_notebook
+---
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(dplyr)
+library(lubridate)
+library(wesanderson)
+library(tidyr)
+library(micropan)
+library(rprojroot)
+
+```
+
+
+set paths and filenames
+```{r}
+### files
+virome_table=sprintf(
+  "%s/data/wastewater_virome_abundance_table1.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+
+```
+
+merge abundance and metadata tables
+```{r}
+virome_dt <- fread(virome_table, sep = "\t", header = T )
+
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+
+virome_met_dt <- merge(virome_dt, meta_dt, by = "sample_ID")
+
+virome_met_dt$City_Site <- str_c(virome_met_dt$City, ", ", virome_met_dt$Site)
+
+
+virome_met_dt <- virome_met_dt %>%
+  mutate(coverage = covered_bases/reference_length) %>%
+  mutate(cov_category = case_when(
+    coverage >= 0.9 ~ "Over 90%",
+    coverage < 0.9 & coverage >= 0.5 ~ "50% to 90%",
+    coverage < 0.5 & coverage >= 0.1 ~ "10% to 50%",
+    TRUE ~ "Less"
+  ))
+```
+
+plot categories
+```{r}
+custom_scale <- wes_palette("Chevalier1", 3, type = "continuous")
+
+violinp <- virome_met_dt %>%
+  group_by(sample_ID, cov_category) %>%
+  summarize(seqs = n_distinct(sequence_name)) %>%
+  filter(cov_category != "Less") %>%
+  ggplot(aes(x=seqs, y = cov_category, fill = cov_category)) +
+  geom_violin(alpha = 0.5, color = "grey20", draw_quantiles = c(0.5)) +
+  geom_jitter(aes(color = cov_category), alpha = 0.2, height = 0.05) +
+  scale_fill_manual(values = custom_scale) +
+  scale_color_manual(values = custom_scale) +
+  geom_text(data = median_category, aes(x = median_seqs-3, y = cov_category, label = median_seqs), angle=90) +
+  xlim(c(0,110)) +
+  theme_bw() +
+  labs(x = "# virus genomes/segments\nwith coverage level per sample",
+       y = "Genome/segment coverage") +
+  theme(legend.position = "Off",
+        axis.text.x = element_text(size=10),
+        strip.text = element_text(size=10))
+
+violinp
+ggsave(violinp, file = sprintf("%s/charts/seq_coverag_per_sample.pdf", find_rstudio_root_file()), width = 4, height = 3)
+
+```
+
+
+
+
+
+
+
+
+
+
+

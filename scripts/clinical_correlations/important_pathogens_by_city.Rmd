@@ -1,0 +1,145 @@
+---
+title: "plot moving average of various important pathogens"
+output: html_notebook
+---
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(dplyr)
+library(readxl)
+library(lubridate)
+library(tidyquant)
+library(tidyr)
+library(ggpubr)
+library(rstatix)
+library(rprojroot)
+library(wesanderson)
+
+```
+
+set paths and filenames
+```{r}
+### files
+virome_table=sprintf(
+  "%s/data/wastewater_virome_abundance_table1.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+
+```
+
+load and merge tables
+```{r}
+virome_dt <- fread(virome_table, sep = "\t", header = T )
+
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+
+virome_met_dt <- merge(virome_dt, meta_dt, by = "sample_ID")
+
+virome_met_dt$City_Site <- str_c(virome_met_dt$City, ", ", virome_met_dt$Site)
+
+# filtering to dates when collection at ALL sites began
+virome_met_dt <- virome_met_dt %>%
+  filter(Date >= '2022-06-07')
+```
+
+```{r}
+select_dt <- virome_met_dt %>%
+  filter(species %in% c("Norwalk virus", "Enterovirus D", "Rotavirus A", "Influenza A virus", "Severe acute respiratory syndrome-related coronavirus", "Monkeypox virus", "Respiratory syncytial virus", "Human mastadenovirus B")) %>%
+  mutate(Week = floor_date(Date, "weeks", week_start = 1)) %>%
+  group_by(sample_ID, City, Week, species) %>%
+  summarize(RPKMF = sum(RPKMF)) %>%
+  ungroup() %>%
+  group_by(species, City) %>%
+  mutate(rel_ab = RPKMF/sum(RPKMF)) %>%
+  ungroup()
+
+```
+
+plot moving average
+```{r}
+pal <- wes_palette("Zissou1", 2, type = "continuous")
+
+movp <- select_dt %>%
+  group_by(Week, City, species) %>%
+  summarize(rel_ab = sum(rel_ab),
+            RPKMF = sum(RPKMF)) %>%
+  ungroup() %>%
+  complete(Week, City, species, fill = list(rel_ab = 0, RPKMF = 0)) %>%
+  mutate(species = gsub("Enterovirus D", "Enterovirus D68", species),
+         species = gsub("Norwalk virus", "Noroviruses", species),
+         species = gsub("Severe acute respiratory syndrome-related coronavirus",
+                        "SARS-CoV2", species)) %>%
+  ggplot(aes(x = Week, y = RPKMF, color = City)) +
+  geom_ma(ma_fun = SMA, n = 3, linetype = "solid", size = 0.8, alpha = 0.9) +  
+  scale_x_date(date_breaks = "months", date_labels = "%b %Y") +
+  scale_color_manual(values = pal) +
+  facet_wrap(vars(species), scales = "free_y", labeller = label_wrap_gen()) +
+  labs(x = "Date", y = "City-wide abundance (RPKMF)") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+
+movp
+
+ggsave(movp, file = sprintf("%s/charts/important_pathogens_by_city1.pdf", find_rstudio_root_file()), width = 7, height = 5)
+ 
+```
+
+plot heatmap for sites
+```{r}
+
+heatp <- virome_met_dt %>%
+  filter(species %in% c("Norwalk virus", "Enterovirus D", "Rotavirus A", "Influenza A virus", "Severe acute respiratory syndrome-related coronavirus", "Monkeypox virus", "Respiratory syncytial virus", "Human mastadenovirus B")) %>%
+  mutate(Week = floor_date(Date, "weeks", week_start = 1)) %>%
+  group_by(sample_ID, City, Site, Week, species) %>%
+  summarize(RPKMF = sum(RPKMF)) %>%
+  ungroup() %>%
+  #group_by(species, Site) %>%
+  group_by(species) %>%
+  mutate(rel_ab = RPKMF/sum(RPKMF)) %>%
+  ungroup() %>%
+  group_by(Week, City, Site, species) %>%
+  summarize(rel_ab = sum(rel_ab),
+            RPKMF = sum(RPKMF)) %>%
+  ungroup() %>%
+  complete(Week, Site, species, fill = list(rel_ab = 0, RPKMF = 0)) %>%
+  filter(City != "NA") %>%
+  mutate(species = gsub("Enterovirus D", "Enterovirus D68", species),
+         species = gsub("Norwalk virus", "Noroviruses", species),
+         species = gsub("Severe acute respiratory syndrome-related coronavirus",
+                        "SARS-CoV2", species)) %>%
+  ggplot(aes(x=factor(Week), y=species, fill=log10(RPKMF))) +
+  geom_tile(color = "black") +
+  scale_fill_gradient2(low = 'grey99', mid = 'orange', high = 'mediumorchid4', 
+                       na.value = 'white', midpoint = 2) +
+  facet_wrap(vars(City, Site), nrow = 2, scales = "free_x") +
+  theme_bw() +
+  labs(x = "Date", y = "") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), 
+        panel.grid.major.x = element_blank()) +
+  theme(axis.text.x = element_text(color=c(0,1,0,1)),
+        legend.position = "bottom")
+
+heatp
+
+ggsave(sprintf("%s/charts/important_pathogen_heatmap.pdf", find_rstudio_root_file()), width = 11, height = 6)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

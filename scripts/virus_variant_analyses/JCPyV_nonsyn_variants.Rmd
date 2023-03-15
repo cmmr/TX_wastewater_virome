@@ -27,7 +27,7 @@ set paths and filenames
 ```{r}
 ### files
 variant_table=sprintf(
-  "%s/data/all_JCPyV_genbank_J02226.1.nonsyn_variants.tsv", 
+  "%s/data/all_JCPyV_genbank_J02226.1.nonsyn_variants2.tsv", 
   find_rstudio_root_file())
 metadata_table=sprintf(
   "%s/data/wastewater_sample_metadata_table1.tsv", 
@@ -108,7 +108,7 @@ embb_dt %>%
   scale_shape_manual(values=c(15, 16, 17, 18, 3, 4 ,8, 9, 11, 13, 1))+
   scale_color_manual(values = pal) +
   theme_bw() +
-  labs(x="", y="")
+  labs(x="tSNE-1", y="tSNE-2")
 
 ggsave(sprintf("%s/charts/all_JCPyV_tSNE_site_city.pdf", find_rstudio_root_file()), width = 5.5, height = 4)
 
@@ -166,7 +166,7 @@ make little gene dt
 ```{r}
 little_gene <- mut_describe_dt %>%
   group_by(mutation_description) %>%
-  filter(n() > 5 & n() < 50) %>%
+  filter(n() > 5 & n() < 60) %>%
   ungroup() %>%
   distinct(mutation_description)
 
@@ -180,7 +180,7 @@ little_gene[, c("genome_position", "gene_name", "gene_codon_num", "ref_AA", "mut
 ## format wide appropriately
 wide_mut_heat <- mut_describe_dt %>%
   group_by(mutation_description) %>%
-  filter(n() > 5 & n() < 50) %>%
+  filter(n() > 5 & n() < 60) %>%
   ungroup() %>%
   group_by(mutation_description, sample_ID) %>%
   mutate(row = row_number()) %>%
@@ -208,7 +208,7 @@ pm <- p %<+% meta_dt +
   labs(y="Samples")
 
 ### label bar for mutation genes
-pal <- wes_palette("IsleofDogs1", 6, type = "continuous")
+pal <- wes_palette("IsleofDogs1", 7, type = "continuous")
 labels <- little_gene %>%
   arrange(desc(genome_position)) %>%
   ggplot(aes(mutation_description, y=1, fill=gene_name)) + 
@@ -277,7 +277,7 @@ top1
 ### long table to be compatible with ggplot
 long_mut_heat <- mut_describe_dt %>%
   group_by(mutation_description) %>%
-  filter(n() > 5 & n() < 50) %>%
+  filter(n() > 5 & n() < 60) %>%
   ungroup() %>%
   complete(sample_ID, mutation_description) %>%
   replace(is.na(.), 0)
@@ -308,7 +308,7 @@ pm_labs <- heat1 %>%
   insert_top(top1, height=.03)
 pm_labs
 
-ggsave(pm_labs, file = sprintf("%s/charts/JCPyV_ggtree_heatmap2.pdf", find_rstudio_root_file()), width = 8, height = 6)
+ggsave(pm_labs, file = sprintf("%s/charts/JCPyV_ggtree_heatmap2.pdf", find_rstudio_root_file()), width = 8, height = 6.5)
 
 ```
 
