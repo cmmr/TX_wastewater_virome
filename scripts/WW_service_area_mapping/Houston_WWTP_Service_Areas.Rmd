@@ -1,0 +1,165 @@
+---
+title: "Houston WWTP Service Areas"
+output:
+  html_notebook:
+    toc: yes
+date: "2023-03-16"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, message = F)
+library(rgdal)
+library(readxl)
+library(dplyr)
+library(tmap)
+library(sf)
+library(ggplot2)
+library(ggmap)
+```
+
+
+
+```{r}
+# Read in WWTP shapefiles
+shp <- readOGR("WWTP", "WW_final", verbose=F)
+#shp <- read_sf("WWTP/WW_final.shp")
+# subset the shapefiles of the 6 facilities with data
+focus <- subset(shp, shp$CorName %in% c("Homestead", "Intercontinental Airport", "Park Ten", "Turkey Creek", "Almeda Sims", "Metro Central"))
+# Get Harris County shapefiles 
+county_shp <- tigris::counties(state = "TX", year=2021)
+harris_shp <- subset(county_shp, county_shp$NAME=="Harris")
+# map of the 39 facilities with the 6 highlighted 
+tm_shape(harris_shp)+tm_borders("grey30", alpha=0.5)+
+  tm_shape(shp)+ tm_borders("black", alpha=0.75)+
+    tm_shape(focus) + tm_borders("red", alpha=1)
+```
+
+```{r}
+## Read in the addresses of the Houston Wastewater facilities
+address <- read_excel("WWTP_address.xlsx")
+# address <- read_excel("(HOU) WWTP Address List.xlsx")
+# address$City <- "Houston"
+# address$coordinates <- geocode(address$Address)
+# address$lat <- address$coordinates$lat; address$lon <- address$coordinates$lon
+# address$lon[4] <- -95.62125471114265; address$lat[4] <- 29.76319241835248
+# writexl::write_xlsx(address, "Processed_data/WWTP_address.xlsx")
+
+# Harris Zipcode shapfile
+zip <- readOGR("TexasZipcode", "TexasZipcode")
+###### Harris county #########
+# list of Zip Codes in Harris County
+hzip <- read_excel("Harris_zipcodelist.xlsx")
+hzip$zipcode <- substr(hzip$`ZIP Code`, 10,14)
+
+# Match zipcodes with ZCTAs
+zip$GEOID10 <- as.character(zip$GEOID10)
+HarrisZip <- subset(zip, zip$GEOID10 %in% hzip$zipcode)
+
+# convert to ggplot objects
+ggHarris <- fortify(HarrisZip, region="GEOID10")
+ggWW <- fortify(focus, region="FID_1")
+
+# add locations 
+coordinates <- address[,c("Sampling Site", "lat", "lon")]
+coor_sf = st_as_sf(coordinates, coords = c('lon', 'lat'), crs = st_crs(HarrisZip)$proj4string)
+
+# Harris county google map (Google API is needed)
+Harris<- geocode("Harris county, TX")  #lon -97.5  lat 26.1
+Harris_center <- c(-95.52, 29.8)
+Harris_Map <- ggmap(get_googlemap(center=Harris_center, scale=2 ,zoom=9, maptype = "roadmap"), extent="panel")
+Harris_Map
+
+```
+
+## Map of WWTP service areas overlayed with Harris County ZCTAs
+```{r fig.height=5, fig.width=6}
+focus = spTransform(focus, CRS("+init=epsg:4326"))
+m2<- tm_shape(HarrisZip)+ tm_borders("grey30", lwd=0.6)+
+  #tm_shape(shp)+ tm_polygons("grey30", alpha=0.5, border.col = "black", border.alpha = 1)+
+  tm_shape(focus) + tm_borders("red", alpha=1, lwd=1.5)+
+  tm_shape(coor_sf)+
+  tm_symbols(size=0.1, col="black", border.col="black")+tm_text("Sampling Site", size=1.2, just="left", ymod=0.6)+
+  tm_add_legend('symbol', col='black', border.col='black', size=0.3, title="WWTF locations") +
+  tm_add_legend('symbol', col='white', border.col='red', size=1, title="Service area") +
+  tm_add_legend('symbol', col='white', border.col='grey30', size=1, title="ZCTA boundaries") +
+  tm_layout(title="Harris County Zip Code Map overlayed with WWTF service areas",
+            inner.margins=c(0,0,0.05,0))
+m2
+# save the map
+#tmap_save(m2, "Houston_6WWTP_map.png", width=12, height=8)
+
+
+# Map with Google map background
+m1 <- Harris_Map  +
+  geom_polygon(data = ggHarris, aes(x=long, y=lat, group = group), color="grey50", size=0.7, alpha=0)+
+  geom_polygon(data = ggWW, aes(x=long, y=lat, group = group), color="red", size=0.8, fill="pink")+
+  xlab("Longitude")+ylab("Latitude")+labs(fill="")+
+  geom_point(data=coordinates, aes(lon, lat), colour="black", size=1.5)+
+  geom_text(data = coordinates, mapping = aes(x=lon, y=lat+0.01, label=`Sampling Site`), size=4, color="blue")+
+  ggtitle("Harris County Zipcode Map overlayed with WWTF locations")+
+  coord_fixed(xlim=c(-96.1,-94.85), ylim=c(29.45, 30.25))
+m1
+#save the map
+#ggsave("Houston_6WWTP_map2.png",m1)
+
+```
+
+
+```{r}
+# Get the list ZCTAs within each WWTP service areas
+proj4string(HarrisZip) <- proj4string(focus)
+focus1 <- st_as_sf(focus)
+HarrisZip1<- st_as_sf(HarrisZip)
+focus1 <- st_transform(focus1, "+proj=longlat +datum=WGS84")
+focus = spTransform(focus, CRS("+init=epsg:4326"))
+st_crs(HarrisZip1) <- st_crs(focus1)
+
+# Extract the ZCTAs within each WWTP and coverage areas (%):
+service_area <- data.frame()
+options(scipen=999)
+# Calculate area and tidy up
+for (area in focus$SERVICE_AR) {
+  
+intersect_pct <- st_intersection(HarrisZip1,subset(focus1, focus1$SERVICE_AR==area)) %>% 
+   mutate(intersect_area = st_area(.)) %>%   # create new column with shape area
+   dplyr::select(GEOID10, intersect_area) %>%   # only select columns needed to merge
+   st_drop_geometry()  # drop geometry
+
+# Create a fresh area variable for ZCTAs
+HZ <- mutate(HarrisZip1, zcta_area = st_area(HarrisZip1))
+
+# Merge by county name
+HZ <- merge(HZ[,c("GEOID10", "zcta_area")], intersect_pct, by = "GEOID10", all.y = TRUE)
+
+# Calculate coverage
+HZ <- HZ %>% 
+   mutate(coverage_pct = as.numeric(intersect_area/zcta_area*100), WWTP=area)
+
+service_area <- rbind(service_area, HZ)
+
+}
+
+final <- service_area %>% select(WWTP, GEOID10, coverage_pct) %>%
+  st_drop_geometry() %>%
+  rename(ZCTA=GEOID10) %>%
+  filter(coverage_pct>=5)
+
+final
+```
+
+
+```{r}
+# Get ZCTA level population data
+pop <- tidycensus::get_acs(geography = "zcta",year=2021, variable="B01001_001")
+
+# merge to our data
+final <- left_join(final, pop[,c("GEOID", "estimate")], by=c("ZCTA"="GEOID")) %>% rename(ZCTA_pop=estimate)
+
+# save the final list
+#writexl::write_xlsx(final, "Houston_WWTP_service_ZCTAs.xlsx")
+```
+
+
+
+
+
