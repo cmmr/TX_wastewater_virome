@@ -13,8 +13,8 @@ library(readxl)
 library(lubridate)
 library(tidyquant)
 library(tidyr)
-#library(ggpubr)
-#library(rstatix)
+library(ggpubr)
+library(rstatix)
 library(rprojroot)
 
 ```
@@ -29,7 +29,7 @@ metadata_table=sprintf(
   "%s/data/wastewater_sample_metadata_table1.tsv", 
   find_rstudio_root_file())
 harris_pos_table=sprintf(
-  "%s/data/harris_country_sarscov2_Positivity_Rate_230317.csv", 
+  "%s/data/harris_county_sars_Positivity_Rate_230309.csv", 
   find_rstudio_root_file())
 
 ```
@@ -84,11 +84,11 @@ ggplot() +
           aes(x=Week, y=avg_pos, color="Average Positivity %"), 
           ma_fun = SMA, n = 3, linetype = "solid", size = 1.5) +
   geom_vline(xintercept = as.Date('2022-11-01'), color = "grey60") +
-  geom_text(aes(x= as.Date('2022-11-01'), y = 15, label = "Summer Wave\n"), angle = 90) +
-  geom_text(aes(x= as.Date('2022-11-01'), y = 15, label = "\nWinter Wave"), angle = 90) +
+  geom_text(aes(x= as.Date('2022-11-01'), y = 22, label = "Summer Wave\n"), angle = 90) +
+  geom_text(aes(x= as.Date('2022-11-01'), y = 22, label = "\nWinter Wave"), angle = 90) +
   scale_color_manual(name='Data Type',
                      breaks=c('Virome Seq', 'Average Positivity %'),
-                     values=c('Virome Seq'='#4B4E55', 'Average Positivity %'='#DDC70F')) +
+                     values=c('Virome Seq'='#4B4E55', 'Average Positivity %'='#F4A65E')) +
   labs(x = "Date", title = "Houston, TX SARS-CoV2 Measurements") +
   theme_bw() +
   scale_y_continuous(name = "Avg. Daily Average Positivity % (PCR test)",
@@ -132,8 +132,8 @@ merge_sars_dt %>%
   geom_smooth(se = F, method = "lm") +
   scale_color_manual(values = c("#466D53", "#83CDC0")) +
   labs(y = "Wastewater Sequencing \nAbundance (RPKMF)", 
-       x = "Avg. Daily Case Rate (PCR test)") +
-  #stat_cor(label.x = 3) +
+       x = "Avg. Daily Average Positivity % (PCR test)") +
+  stat_cor(label.x = 3) +
   theme_bw()
   
 ggsave(sprintf("%s/charts/SARS-CoV2_HTX_virome_vs_positivity_wave_scatter1.pdf", find_rstudio_root_file()), width = 4, height = 3)
