@@ -14,7 +14,10 @@ library(dplyr)
 library(tmap)
 library(sf)
 library(ggplot2)
+library(rgeos)
 library(ggmap)
+library(maptools)
+library(gpclib)
 ```
 
 
@@ -56,6 +59,9 @@ zip$GEOID10 <- as.character(zip$GEOID10)
 HarrisZip <- subset(zip, zip$GEOID10 %in% hzip$zipcode)
 
 # convert to ggplot objects
+gpclibPermit
+gpclibPermitStatus = T
+gpclibPermitStatus
 ggHarris <- fortify(HarrisZip, region="GEOID10")
 ggWW <- fortify(focus, region="FID_1")
 
@@ -78,15 +84,16 @@ m2<- tm_shape(HarrisZip)+ tm_borders("grey30", lwd=0.6)+
   #tm_shape(shp)+ tm_polygons("grey30", alpha=0.5, border.col = "black", border.alpha = 1)+
   tm_shape(focus) + tm_borders("red", alpha=1, lwd=1.5)+
   tm_shape(coor_sf)+
-  tm_symbols(size=0.1, col="black", border.col="black")+tm_text("Sampling Site", size=1.2, just="left", ymod=0.6)+
+  tm_symbols(size=0.1, col="black", border.col="black") +
+  tm_text("Sampling Site", size=1, just="left", ymod=0.6)+
   tm_add_legend('symbol', col='black', border.col='black', size=0.3, title="WWTF locations") +
   tm_add_legend('symbol', col='white', border.col='red', size=1, title="Service area") +
-  tm_add_legend('symbol', col='white', border.col='grey30', size=1, title="ZCTA boundaries") +
-  tm_layout(title="Harris County Zip Code Map overlayed with WWTF service areas",
-            inner.margins=c(0,0,0.05,0))
+  tm_add_legend('symbol', col='white', border.col='grey30', size=1, title="ZCTA boundaries") #+
+  #tm_layout(title="Harris County Zip Code Map overlayed with WWTF service areas",
+  #          inner.margins=c(0,0,0.05,0))
 m2
 # save the map
-#tmap_save(m2, "Houston_6WWTP_map.png", width=12, height=8)
+tmap_save(m2, "Houston_6WWTP_map.pdf", width=6, height=4)
 
 
 # Map with Google map background
