@@ -2,3 +2,5 @@ data/
 .Rproj.user
 .Rhistory
 **/*nb.html
+.DS_Store
+**/.DS_Store
