@@ -1,12 +1,12 @@
 ---
-title: "Houston WWTP Service Areas"
+title: "Houston & El Paso WWTP Service Areas"
 output:
   html_notebook:
     toc: yes
 date: "2023-03-16"
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE}  
 knitr::opts_chunk$set(echo = F, warning = F, message = F)
 library(rgdal)
 library(readxl)
@@ -21,10 +21,10 @@ library(gpclib)
 ```
 
 
-
-```{r}
+### Houston Area
+```{r message=FALSE}
 # Read in WWTP shapefiles
-shp <- readOGR("WWTP", "WW_final", verbose=F)
+shp <- readOGR("WWTP", "WW_Houston", verbose=F)
 #shp <- read_sf("WWTP/WW_final.shp")
 # subset the shapefiles of the 6 facilities with data
 focus <- subset(shp, shp$CorName %in% c("Homestead", "Intercontinental Airport", "Park Ten", "Turkey Creek", "Almeda Sims", "Metro Central"))
@@ -72,14 +72,43 @@ coor_sf = st_as_sf(coordinates, coords = c('lon', 'lat'), crs = st_crs(HarrisZip
 # Harris county google map (Google API is needed)
 Harris<- geocode("Harris county, TX")  #lon -97.5  lat 26.1
 Harris_center <- c(-95.52, 29.8)
-Harris_Map <- ggmap(get_googlemap(center=Harris_center, scale=2 ,zoom=9, maptype = "roadmap"), extent="panel")
+Harris_Map <- ggmap(get_googlemap(center=Harris_center, scale=2 ,zoom=9, maptype = "terrain"), extent="panel")
 Harris_Map
 
 ```
 
-## Map of WWTP service areas overlayed with Harris County ZCTAs
+#### Map of WWTP service areas overlayed with Harris County ZCTAs
 ```{r fig.height=5, fig.width=6}
 focus = spTransform(focus, CRS("+init=epsg:4326"))
+<<<<<<< HEAD:scripts/WW_service_area_mapping/WWTP_Service_Areas.Rmd
+# m2<- tm_shape(HarrisZip)+ tm_borders("grey30", lwd=0.6)+
+#   #tm_shape(shp)+ tm_polygons("grey30", alpha=0.5, border.col = "black", border.alpha = 1)+
+#   tm_shape(focus) + tm_borders("red", alpha=1, lwd=1.5)+
+#   tm_shape(coor_sf)+
+#   tm_symbols(size=0.1, col="black", border.col="black")+tm_text("Sampling Site", size=1.2, just="left", ymod=0.6)+
+#   tm_add_legend('symbol', col='black', border.col='black', size=0.3, title="WWTF locations") +
+#   tm_add_legend('symbol', col='white', border.col='red', size=1, title="Service area") +
+#   tm_add_legend('symbol', col='white', border.col='grey30', size=1, title="ZCTA boundaries") +
+#   tm_layout(title="Harris County Zip Code Map overlayed with WWTF service areas",
+#             inner.margins=c(0,0,0.05,0))
+
+# add Zipcode marks
+HarrisZip$lat <- as.numeric(as.character(HarrisZip$INTPTLAT10))
+HarrisZip$lon <- as.numeric(as.character(HarrisZip$INTPTLON10))
+coordinates1 <- HarrisZip@data[,c("GEOID10", "lat", "lon")]
+coor_sf1 = st_as_sf(coordinates1, coords = c('lon', 'lat'), crs = st_crs(HarrisZip)$proj4string)
+
+focus$`Service Areas` <- focus$CorName
+m2<-  tm_shape(harris_shp)+ tm_polygons("grey30", alpha=0, border.col = "blue", border.alpha = 1)+
+  tm_shape(focus) + tm_fill(col="Service Areas", alpha=1, lwd=1.5)+
+  tm_shape(HarrisZip)+ tm_borders("grey30", lwd=1.5)+
+  tm_shape(coor_sf1)+tm_text("GEOID10", size=0.5)+
+  #tm_add_legend('symbol', col='black', border.col='black', size=0.3, title="WWTF locations") +
+  tm_add_legend('symbol', col='white', border.col='blue', size=1, title="Harris County boundary") +
+  tm_add_legend('symbol', col='white', border.col='grey30', size=1, title="Zip Code boundaries") +
+  tm_layout(#title="Harris County",
+            inner.margins=c(0,0,0,0))
+=======
 m2<- tm_shape(HarrisZip)+ tm_borders("grey30", lwd=0.6)+
   #tm_shape(shp)+ tm_polygons("grey30", alpha=0.5, border.col = "black", border.alpha = 1)+
   tm_shape(focus) + tm_borders("red", alpha=1, lwd=1.5)+
@@ -91,6 +120,7 @@ m2<- tm_shape(HarrisZip)+ tm_borders("grey30", lwd=0.6)+
   tm_add_legend('symbol', col='white', border.col='grey30', size=1, title="ZCTA boundaries") #+
   #tm_layout(title="Harris County Zip Code Map overlayed with WWTF service areas",
   #          inner.margins=c(0,0,0.05,0))
+>>>>>>> main:scripts/WW_service_area_mapping/Houston_WWTP_Service_Areas.Rmd
 m2
 # save the map
 tmap_save(m2, "Houston_6WWTP_map.pdf", width=6, height=4)
@@ -112,6 +142,45 @@ m1
 ```
 
 
+### El Paso
+```{r fig.height=8, fig.width=6}
+# Read in WWTP shapefiles
+El_shp <- readOGR("WWTP", "WW_ElPaso", verbose=F)
+# read in the list of Zipcodes in El Paso
+# list of Zip Codes in Harris County
+ezip <- read_excel("ElPaso_zipcodelist.xlsx")
+# Match zipcodes with ZCTAs
+ElPasoZip <- subset(zip, zip$GEOID10 %in% ezip$Zipcode)
+
+El_shp$`` <- ifelse(El_shp$ServiceAre=="Bustamante", "Roberto Bustamante", ifelse(El_shp$ServiceAre=="Northwest", "John T. Hickerson", ifelse(El_shp$ServiceAre=="Hervey", "Fred Hervey", El_shp$ServiceAre)))
+
+# add Zipcode marks
+ElPasoZip$lat <- as.numeric(as.character(ElPasoZip$INTPTLAT10))
+ElPasoZip$lon <- as.numeric(as.character(ElPasoZip$INTPTLON10))
+coordinates2 <- ElPasoZip@data[,c("GEOID10", "lat", "lon")]
+coor_sf2 = st_as_sf(coordinates2, coords = c('lon', 'lat'), crs = st_crs(ElPasoZip)$proj4string)
+
+# El Paso County
+El_county <- subset(county_shp, county_shp$NAME=="El Paso")
+
+m3<-  tm_shape(El_county)+ tm_polygons("grey30", alpha=0, border.col = "blue", border.alpha = 1)+
+  tm_shape(El_shp) + tm_fill(col="Service Areas", alpha=1, lwd=1.5)+
+  tm_shape(ElPasoZip)+ tm_borders("grey30", lwd=1.5)+
+  tm_shape(coor_sf2)+tm_text("GEOID10", size=0.8)+
+  #tm_add_legend('symbol', col='black', border.col='black', size=0.3, title="WWTF locations") +
+  tm_add_legend('symbol', col='white', border.col='blue', size=1, title="El Paso County boundary") +
+  tm_add_legend('symbol', col='white', border.col='grey30', size=1, title="Zip Code boundaries") +
+  tm_layout(#title="EL Paso",
+            inner.margins=c(0,0,0,0))
+m3
+# save the map
+#tmap_save(m3, "ElPaso_4WWTP_map.png", width=6, height=7)
+
+
+```
+
+
+### Get ZCTA list (Houston)
 ```{r}
 # Get the list ZCTAs within each WWTP service areas
 proj4string(HarrisZip) <- proj4string(focus)
