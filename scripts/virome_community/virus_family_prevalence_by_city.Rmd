@@ -7,8 +7,8 @@ output: html_notebook
 
 Because the El Paso WWTPs have larger catchment areas and their alpha diversity is higher, we expect that there will be greater prevalence of most things
 
-
 load packages
+
 ```{r}
 library(ggplot2)
 library(data.table)
@@ -22,6 +22,7 @@ library(rprojroot)
 ```
 
 set paths and filenames
+
 ```{r}
 ### files
 virome_table=sprintf(
@@ -34,6 +35,7 @@ metadata_table=sprintf(
 ```
 
 merge abundance and metadata tables
+
 ```{r}
 virome_dt <- fread(virome_table, sep = "\t", header = T )
 
@@ -51,14 +53,14 @@ city_prev_dt <- virome_met_dt %>%
   group_by(City) %>%
   mutate(total_samples = n_distinct(sample_ID)) %>%
   ungroup() %>%
-  group_by(sequence_name, City, total_samples) %>%
+  group_by(strain, City, total_samples) %>%
   summarize(n = n_distinct(sample_ID)) %>%
   mutate(freq = n / total_samples) %>%
   ungroup() %>%
-  select(sequence_name, City, freq) %>%
+  select(strain, City, freq) %>%
   pivot_wider(names_from = City, values_from = freq, values_fill = 0)
 
-colnames(city_prev_dt) <- c("sequence_name", "EPTX", "HTX")
+colnames(city_prev_dt) <- c("strain", "EPTX", "HTX")
 
 
 
@@ -67,10 +69,13 @@ city_prev_dt %>%
   geom_point(alpha = 0.5)
 
 tax_table <- virome_dt %>%
-  select(c("kingdom", "phylum", "class", "order", "family", "genus", "species", "strain", "sequence_name"))
+  select(c("kingdom", "phylum", "class", 
+           "order", "family", "genus", 
+           "species", "strain")) %>%
+  distinct()
 
 
-city_prev_tax_dt <-merge(city_prev_dt, tax_table, by = "sequence_name")
+city_prev_tax_dt <-merge(city_prev_dt, tax_table, by = "strain")
 ```
 
 ```{r}
@@ -78,9 +83,10 @@ city_prev_tax_dt <-merge(city_prev_dt, tax_table, by = "sequence_name")
 prevp <- city_prev_tax_dt %>%
   filter(family != "NA") %>%
   ungroup() %>%
+  distinct() %>%
   ggplot() +
   geom_point(aes(x = EPTX, y = HTX, size = (HTX+EPTX), fill = family), 
-             alpha = 0.2, stroke = 0, shape = 21, color = "black") +
+             alpha = 0.6, stroke = 1, shape = 21, color = "black") +
   scale_size(range = c(0.1, 5)) +
   geom_abline(intercept = 0, slope = 1, linetype = "dotted") +
   facet_wrap(~family) +
@@ -94,13 +100,3 @@ prevp
 ggsave(prevp, file = sprintf("%s/charts/families_by_city.pdf", find_rstudio_root_file()), width = 6.5, height = 6.5)
 
 ```
-
-
-
-
-
-
-
-
-
-
