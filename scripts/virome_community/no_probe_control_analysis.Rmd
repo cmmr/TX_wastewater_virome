@@ -11,6 +11,8 @@ library(stringr)
 library(dplyr)
 library(tidyr)
 library(ggrepel)
+library(rprojroot)
+
 ```
 
 set paths and filenames
@@ -20,6 +22,9 @@ probe_align_table=sprintf(
   "%s/data/no-probe_with-TWIST-probe_control_read_alignment_table1.tsv", 
   find_rstudio_root_file())
 
+virome_table=sprintf(
+  "%s/data/wastewater_virome_abundance_table1.tsv", 
+  find_rstudio_root_file())
 
 ```
 
@@ -29,6 +34,9 @@ load data
 probe_control_dt <- fread(probe_align_table, header = T, sep = "\t")
 
 colnames(probe_control_dt) <- c("sample_ID", "np_aligned", "wp_aligned", "np_filtered", "wp_filtered")
+
+virome_dt <- fread(virome_table, sep = "\t", header = T )
+
 ```
 
 plot paired
@@ -61,6 +69,16 @@ ggsave(sprintf("%s/charts/no_probe_vs_probe_read_alignment.pdf", find_rstudio_ro
 
 ```
 
+check strains per sample for probe-enriched
+```{r}
+
+
+strains_dt <- virome_dt %>%
+  group_by(sample_ID) %>%
+  summarize(strains = n_distinct(strain))
+
+strains_probe_dt <- merge(probe_control_dt, strains_dt, by = "sample_ID")
+```
 
 
 
