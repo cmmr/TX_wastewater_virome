@@ -49,7 +49,12 @@ virome_met_dt <- virome_met_dt %>%
 
 ```{r}
 select_dt <- virome_met_dt %>%
-  filter(species %in% c("Norwalk virus", "Enterovirus D", "Rotavirus A", "Influenza A virus", "Severe acute respiratory syndrome-related coronavirus", "Monkeypox virus", "Respiratory syncytial virus", "Human mastadenovirus B")) %>%
+  filter(species %in% c("Norwalk virus", "Enterovirus D", "Rotavirus A", 
+                        "Influenza A virus", 
+                        "Severe acute respiratory syndrome-related coronavirus", 
+                        "Monkeypox virus", "Respiratory syncytial virus", 
+                        "Human mastadenovirus B", "Hepatovirus A", 
+                        "Human respirovirus 1", "Human respirovirus 3")) %>%
   mutate(Week = floor_date(Date, "weeks", week_start = 1)) %>%
   group_by(sample_ID, City, Week, species) %>%
   summarize(RPKMF = sum(RPKMF)) %>%
@@ -73,7 +78,10 @@ movp <- select_dt %>%
   mutate(species = gsub("Enterovirus D", "Enterovirus D68", species),
          species = gsub("Norwalk virus", "Noroviruses", species),
          species = gsub("Severe acute respiratory syndrome-related coronavirus",
-                        "SARS-CoV2", species)) %>%
+                        "SARS-CoV2", species),
+         species = gsub("Hepatovirus A", "Hepatitis A Virus", species),
+         species = gsub("Human respirovirus 3", "Human Parainfluenza Virus 3", species),
+         species = gsub("Human respirovirus 1", "Human Parainfluenza Virus 1", species)) %>%
   ggplot(aes(x = Week, y = RPKMF, color = City)) +
   geom_ma(ma_fun = SMA, n = 3, linetype = "solid", size = 0.8, alpha = 0.9) +  
   scale_x_date(date_breaks = "months", date_labels = "%b %Y") +
@@ -85,7 +93,7 @@ movp <- select_dt %>%
 
 movp
 
-ggsave(movp, file = sprintf("%s/charts/important_pathogens_by_city1.pdf", find_rstudio_root_file()), width = 7, height = 5)
+ggsave(movp, file = sprintf("%s/charts/important_pathogens_by_city1.pdf", find_rstudio_root_file()), width = 8, height = 5)
  
 ```
 
@@ -93,7 +101,12 @@ plot heatmap for sites
 ```{r}
 
 heatp <- virome_met_dt %>%
-  filter(species %in% c("Norwalk virus", "Enterovirus D", "Rotavirus A", "Influenza A virus", "Severe acute respiratory syndrome-related coronavirus", "Monkeypox virus", "Respiratory syncytial virus", "Human mastadenovirus B")) %>%
+  filter(species %in% c("Norwalk virus", "Enterovirus D", "Rotavirus A", 
+                        "Influenza A virus", 
+                        "Severe acute respiratory syndrome-related coronavirus", 
+                        "Monkeypox virus", "Respiratory syncytial virus", 
+                        "Human mastadenovirus B", "Hepatovirus A", 
+                        "Human respirovirus 1", "Human respirovirus 3")) %>%
   mutate(Week = floor_date(Date, "weeks", week_start = 1)) %>%
   group_by(sample_ID, City, Site, Week, species) %>%
   summarize(RPKMF = sum(RPKMF)) %>%
@@ -111,7 +124,10 @@ heatp <- virome_met_dt %>%
   mutate(species = gsub("Enterovirus D", "Enterovirus D68", species),
          species = gsub("Norwalk virus", "Noroviruses", species),
          species = gsub("Severe acute respiratory syndrome-related coronavirus",
-                        "SARS-CoV2", species)) %>%
+                        "SARS-CoV2", species),
+         species = gsub("Hepatovirus A", "Hepatitis A Virus", species),
+         species = gsub("Human respirovirus 3", "Human Parainfluenza Virus 3", species),
+         species = gsub("Human respirovirus 1", "Human Parainfluenza Virus 1", species)) %>%
   ggplot(aes(x=factor(Week), y=species, fill=log10(RPKMF))) +
   geom_tile(color = "black") +
   scale_fill_gradient2(low = 'grey99', mid = 'orange', high = 'mediumorchid4', 
@@ -126,7 +142,7 @@ heatp <- virome_met_dt %>%
 
 heatp
 
-ggsave(sprintf("%s/charts/important_pathogen_heatmap.pdf", find_rstudio_root_file()), width = 11, height = 6)
+ggsave(sprintf("%s/charts/important_pathogen_heatmap.pdf", find_rstudio_root_file()), width = 11, height = 7)
 
 
 ```
