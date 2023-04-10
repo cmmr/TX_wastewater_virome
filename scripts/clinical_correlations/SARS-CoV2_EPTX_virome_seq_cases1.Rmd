@@ -1,0 +1,143 @@
+---
+title: "Compare SARS-CoV2 case count and virome seq abundance in El Paso, TX , May 2022 - February 2023"
+output: html_notebook
+---
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(dplyr)
+library(readxl)
+library(lubridate)
+library(tidyquant)
+library(tidyr)
+library(ggpubr)
+library(rstatix)
+library(rprojroot)
+
+```
+
+set paths and filenames
+```{r}
+### files
+pathogen_table=sprintf(
+  "%s/data/wastewater_specific_pathogen_abundance_table1.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+el_paso_case_table=sprintf(
+  "%s/data/el_paso_weekly_sarscov2_cases_summary1.tsv", 
+  find_rstudio_root_file())
+
+```
+
+load pathogen table, metadata table, format by week
+```{r}
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+
+
+SARS_virome_seq_dt <- fread(pathogen_table, sep = "\t", header = T) %>%
+  filter(Virus_name == "SARS coronavirus 2") %>%
+  mutate(RPKMF = case_when(Detection == "below_detectable_level" ~ 0,
+                           TRUE ~ RPKMF ))
+  
+SARS_EPTX_week_dt  <- merge(SARS_virome_seq_dt, meta_dt, by = "sample_ID") %>%
+  filter(City == "El Paso, TX") %>%
+  mutate(Week = floor_date(Date, "weeks", week_start = 1)) %>%
+  group_by(Week) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  filter(Week >= '2022-06-01')
+```
+
+load sars-cov2 case table, format by week
+```{r}
+## already formatted as weekly summary
+EPTX_week_cases_dt <- fread(el_paso_case_table, sep = "\t", header = T)
+
+
+EPTX_week_cases_dt$Week <- as.Date(EPTX_week_cases_dt$Week)
+
+
+```
+
+plot SARS-Cov2 data as point plot and moving average
+```{r}
+ggplot() + 
+  geom_point(data = SARS_EPTX_week_dt, 
+            aes(x=Week, y=600*(RPKMF), color="Virome Seq"), 
+            alpha = 0.2, size = 1) +
+  geom_point(data = EPTX_week_cases_dt, 
+            aes(x=Week, y=daily_avg_cases, color="Case Rate"), 
+            alpha = 0.2, size = 1) +
+  geom_ma(data = SARS_EPTX_week_dt, 
+          aes(x=Week, y=600*(RPKMF), color="Virome Seq"), 
+          ma_fun = SMA, n = 3, lwd = 1.5) +
+  geom_ma(data = EPTX_week_cases_dt, 
+          aes(x=Week, y=daily_avg_cases, color="Case Rate"), 
+          ma_fun = SMA, n = 3, linetype = "solid", size = 1.5) +
+  geom_vline(xintercept = as.Date('2022-10-10'), color = "grey60") +
+  geom_text(aes(x= as.Date('2022-10-10'), y = 700, label = "Summer Wave\n"), angle = 90) +
+  geom_text(aes(x= as.Date('2022-10-10'), y = 700, label = "\nWinter Wave"), angle = 90) +
+  scale_color_manual(name='Data Type',
+                     breaks=c('Virome Seq', 'Case Rate'),
+                     values=c('Virome Seq'='#4B4E55', 'Case Rate'='#DDC70F')) +
+  labs(x = "Date", title = "El Paso, TX SARS-CoV2 Measurements") +
+  theme_bw() +
+  scale_y_continuous(name = "Avg. Daily Case Rate (PCR test)",
+    sec.axis = sec_axis( trans=~./600, name="Wastewater Sequencing \nAbundance (RPKMF)", label=scales::comma)
+  ) +
+  scale_x_date(date_labels="%Y-%b",date_breaks  ="1 month")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+
+ggsave(sprintf("%s/charts/SARS-CoV2_EPTX_virome_vs_cases1.pdf", find_rstudio_root_file()), width = 5, height = 4)
+```
+
+Pearson correlation and scatter of waves
+```{r}
+SARS_EPTX_week_dt$dtype = "virome_seq"
+SARS_EPTX_week_dtb <- rename(SARS_EPTX_week_dt, value = RPKMF)
+
+EPTX_week_cases_dt$dtype = "case_rate"
+EPTX_week_cases_dtb <- rename(EPTX_week_cases_dt, value = daily_avg_cases) %>%
+  select(c("Week", "value", "dtype"))
+
+merge_sars_dt <- rbind(SARS_EPTX_week_dtb, EPTX_week_cases_dtb) %>%
+  mutate(Wave = case_when(Week >= '2022-10-10' ~ "Winter",
+                          Week < '2022-10-10' ~ "Summer",
+                          TRUE ~ "idk")) %>%
+  group_by(Week, Wave) %>%
+  summarize(Cases = value[dtype == "case_rate"],
+            RPKMF = value[dtype == "virome_seq"])
+
+summer_dt <- merge_sars_dt %>%
+  filter(Wave == "Summer")
+
+cor(summer_dt$RPKMF, summer_dt$Cases)
+
+winter_dt <- merge_sars_dt %>%
+  filter(Wave == "Winter")
+
+cor(winter_dt$RPKMF, winter_dt$Cases)
+
+merge_sars_dt %>%
+  ggplot(aes(x = Cases, y = RPKMF, color = Wave)) +
+  geom_point() + 
+  geom_smooth(se = F, method = "lm") +
+  scale_color_manual(values = c("#466D53", "#83CDC0")) +
+  labs(y = "Wastewater Sequencing \nAbundance (RPKMF)", 
+       x = "Avg. Daily Case Rate (PCR test)") +
+  stat_cor(label.x = 3) +
+  theme_bw()
+  
+ggsave(sprintf("%s/charts/SARS-CoV2_EPTX_virome_vs_cases_wave_scatter1.pdf", find_rstudio_root_file()), width = 4, height = 3)
+
+```
+
+
+
+
+
+
