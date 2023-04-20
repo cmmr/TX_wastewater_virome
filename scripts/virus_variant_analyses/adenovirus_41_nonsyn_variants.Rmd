@@ -151,9 +151,9 @@ p <- groupClade(pp, clades, group_name='subtree') + aes(color=subtree)
 
 p %<+% meta_dt + 
   #layout_dendrogram() + 
-  geom_tippoint(aes(fill=factor(City), x=x-0.01), 
+  geom_tippoint(aes(fill=factor(meta_dt$City), x=x-0.01), 
                 size=2, shape=21, color='black', alpha = 0.5) + 
-  geom_tippoint(aes(fill=factor(Site), x=x+0.01), 
+  geom_tippoint(aes(fill=factor(meta_dt$Site), x=x+0.01), 
                 size=2, shape=21, color='black', alpha = 0.5) +
   #geom_tiplab(hjust=-0.5, offset=-0.1, show.legend=FALSE) + 
   scale_color_brewer(palette='Set1', breaks=1:4) +

@@ -44,13 +44,14 @@ virome_met_dt$City_Site <- str_c(virome_met_dt$City, ", ", virome_met_dt$Site)
 plot histogram of strains per sample
 ```{r}
 custom_scale <- wes_palette("Darjeeling1", 13, type = "continuous")
-custom_scale
+#custom_scale
 median_strains <- virome_met_dt %>%
   group_by(sample_ID, City_Site) %>%
   summarize(strains = n_distinct(strain)) %>%
   group_by(City_Site) %>%
   summarize(median_strains = median(strains))
-  
+
+
 strainsp <- virome_met_dt %>%
   group_by(sample_ID, City_Site) %>%
   summarize(strains = n_distinct(strain)) %>%
@@ -63,10 +64,13 @@ strainsp <- virome_met_dt %>%
   facet_wrap(vars(City_Site), ncol = 1, strip.position = "right", 
              labeller = label_wrap_gen(width = 13)) +
   xlim(c(0,160)) +
-  theme_void() +
   labs(x = "strains detected per sample") +
+  theme_void() + 
   theme(legend.position = "Off",
-        axis.text.x = element_text(size=10))
+        axis.text.x = element_text(size=10),
+        axis.title.x = element_text())
+
+strainsp
 
 ggsave(strainsp, file = sprintf("%s/charts/strains_by_site.pdf", find_rstudio_root_file()), width = 3.5, height = 6)
 ```
@@ -125,7 +129,7 @@ EPTX_rare$subset <- "El Paso, TX"
 
 JH_strain_wide <- 
   virome_met_dt %>% 
-  filter(Site == "John T. Hickerson") %>%
+  filter(Site == "EPS J3") %>%
   group_by(strain, sample_ID) %>%
   summarize(RPKMF = mean(RPKMF)) %>%
   distinct(strain, sample_ID, RPKMF) %>%
@@ -138,11 +142,11 @@ JH_rare$avg <- rowMeans(JH_rare[,-1], na.rm=TRUE)
 JH_rare$max_g <- apply(JH_rare[,-1], 1, max)
 JH_rare$min_g <- apply(JH_rare[,-1], 1, min)
 JH_rare$type <- "Site"
-JH_rare$subset <- "El Paso, TX, John T. Hickerson"
+JH_rare$subset <- "El Paso, TX, EPS J3"
 
 FH_strain_wide <- 
   virome_met_dt %>% 
-  filter(Site == "Fred Hurvey") %>%
+  filter(Site == "EPS K6") %>%
   group_by(strain, sample_ID) %>%
   summarize(RPKMF = mean(RPKMF)) %>%
   distinct(strain, sample_ID, RPKMF) %>%
@@ -155,11 +159,11 @@ FH_rare$avg <- rowMeans(FH_rare[,-1], na.rm=TRUE)
 FH_rare$max_g <- apply(FH_rare[,-1], 1, max)
 FH_rare$min_g <- apply(FH_rare[,-1], 1, min)
 FH_rare$type <- "Site"
-FH_rare$subset <- "El Paso, TX, Fred Hurvey"
+FH_rare$subset <- "El Paso, TX, EPS K6"
 
 HA_strain_wide <- 
   virome_met_dt %>% 
-  filter(Site == "Haskell") %>%
+  filter(Site == "EPS T4") %>%
   group_by(strain, sample_ID) %>%
   summarize(RPKMF = mean(RPKMF)) %>%
   distinct(strain, sample_ID, RPKMF) %>%
@@ -172,11 +176,11 @@ HA_rare$avg <- rowMeans(HA_rare[,-1], na.rm=TRUE)
 HA_rare$max_g <- apply(HA_rare[,-1], 1, max)
 HA_rare$min_g <- apply(HA_rare[,-1], 1, min)
 HA_rare$type <- "Site"
-HA_rare$subset <- "El Paso, TX, Haskell"
+HA_rare$subset <- "El Paso, TX, EPS T4"
 
 RB_strain_wide <- 
   virome_met_dt %>% 
-  filter(Site == "Roberto Bustamante") %>%
+  filter(Site == "EPS Q9") %>%
   group_by(strain, sample_ID) %>%
   summarize(RPKMF = mean(RPKMF)) %>%
   distinct(strain, sample_ID, RPKMF) %>%
@@ -189,11 +193,11 @@ RB_rare$avg <- rowMeans(RB_rare[,-1], na.rm=TRUE)
 RB_rare$max_g <- apply(RB_rare[,-1], 1, max)
 RB_rare$min_g <- apply(RB_rare[,-1], 1, min)
 RB_rare$type <- "Site"
-RB_rare$subset <- "El Paso, TX, Roberto Bustamante"
+RB_rare$subset <- "El Paso, TX, EPS Q9"
 
 PT_strain_wide <- 
   virome_met_dt %>% 
-  filter(Site == "Park Ten") %>%
+  filter(Site == "HOU B9") %>%
   group_by(strain, sample_ID) %>%
   summarize(RPKMF = mean(RPKMF)) %>%
   distinct(strain, sample_ID, RPKMF) %>%
@@ -206,11 +210,11 @@ PT_rare$avg <- rowMeans(PT_rare[,-1], na.rm=TRUE)
 PT_rare$max_g <- apply(PT_rare[,-1], 1, max)
 PT_rare$min_g <- apply(PT_rare[,-1], 1, min)
 PT_rare$type <- "Site"
-PT_rare$subset <- "Houston, TX, Park Ten"
+PT_rare$subset <- "Houston, TX, HOU B9"
 
 AS_strain_wide <- 
   virome_met_dt %>% 
-  filter(Site == "Almeda Sims") %>%
+  filter(Site == "HOU Z9") %>%
   group_by(strain, sample_ID) %>%
   summarize(RPKMF = mean(RPKMF)) %>%
   distinct(strain, sample_ID, RPKMF) %>%
@@ -223,11 +227,11 @@ AS_rare$avg <- rowMeans(AS_rare[,-1], na.rm=TRUE)
 AS_rare$max_g <- apply(AS_rare[,-1], 1, max)
 AS_rare$min_g <- apply(AS_rare[,-1], 1, min)
 AS_rare$type <- "Site"
-AS_rare$subset <- "Houston, TX, Almeda Sims"
+AS_rare$subset <- "Houston, TX, HOU Z9"
 
 MC_strain_wide <- 
   virome_met_dt %>% 
-  filter(Site == "Metro Central") %>%
+  filter(Site == "HOU S3") %>%
   group_by(strain, sample_ID) %>%
   summarize(RPKMF = mean(RPKMF)) %>%
   distinct(strain, sample_ID, RPKMF) %>%
@@ -240,11 +244,11 @@ MC_rare$avg <- rowMeans(MC_rare[,-1], na.rm=TRUE)
 MC_rare$max_g <- apply(MC_rare[,-1], 1, max)
 MC_rare$min_g <- apply(MC_rare[,-1], 1, min)
 MC_rare$type <- "Site"
-MC_rare$subset <- "Houston, TX, Metro Central"
+MC_rare$subset <- "Houston, TX, HOU S3"
 
 TC_strain_wide <- 
   virome_met_dt %>% 
-  filter(Site == "Turkey Creek") %>%
+  filter(Site == "HOU C1") %>%
   group_by(strain, sample_ID) %>%
   summarize(RPKMF = mean(RPKMF)) %>%
   distinct(strain, sample_ID, RPKMF) %>%
@@ -257,11 +261,11 @@ TC_rare$avg <- rowMeans(TC_rare[,-1], na.rm=TRUE)
 TC_rare$max_g <- apply(TC_rare[,-1], 1, max)
 TC_rare$min_g <- apply(TC_rare[,-1], 1, min)
 TC_rare$type <- "Site"
-TC_rare$subset <- "Houston, TX, Turkey Creek"
+TC_rare$subset <- "Houston, TX, HOU C1"
 
 IA_strain_wide <- 
   virome_met_dt %>% 
-  filter(Site == "Intercontinental Airport") %>%
+  filter(Site == "HOU R5") %>%
   group_by(strain, sample_ID) %>%
   summarize(RPKMF = mean(RPKMF)) %>%
   distinct(strain, sample_ID, RPKMF) %>%
@@ -274,11 +278,11 @@ IA_rare$avg <- rowMeans(IA_rare[,-1], na.rm=TRUE)
 IA_rare$max_g <- apply(IA_rare[,-1], 1, max)
 IA_rare$min_g <- apply(IA_rare[,-1], 1, min)
 IA_rare$type <- "Site"
-IA_rare$subset <- "Houston, TX, Intercontinental Airport"
+IA_rare$subset <- "Houston, TX, HOU R5"
 
 HS_strain_wide <- 
   virome_met_dt %>% 
-  filter(Site == "Homestead") %>%
+  filter(Site == "HOU J6") %>%
   group_by(strain, sample_ID) %>%
   summarize(RPKMF = mean(RPKMF)) %>%
   distinct(strain, sample_ID, RPKMF) %>%
@@ -291,7 +295,7 @@ HS_rare$avg <- rowMeans(HS_rare[,-1], na.rm=TRUE)
 HS_rare$max_g <- apply(HS_rare[,-1], 1, max)
 HS_rare$min_g <- apply(HS_rare[,-1], 1, min)
 HS_rare$type <- "Site"
-HS_rare$subset <- "Houston, TX, Homestead"
+HS_rare$subset <- "Houston, TX, HOU J6"
 
 multi_rare <- rbind(all_rare, HTX_rare, EPTX_rare, JH_rare, FH_rare, HA_rare, RB_rare, AS_rare, PT_rare, MC_rare, TC_rare, IA_rare, HS_rare)
 

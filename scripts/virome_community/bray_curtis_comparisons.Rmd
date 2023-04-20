@@ -102,7 +102,7 @@ same_site_bray_dt %>%
   geom_smooth(se = F, alpha = 0.8, color = "darkgrey") +
   scale_color_manual(values = pal) +
   facet_wrap(vars(City.1, Site.1), scales = "free_x") +
-  labs(x = "days between sampling", y = "Bray-Curtis Dissimilarity") +
+  labs(x = "Days Between Sampling", y = "Bray-Curtis Dissimilarity") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
         legend.position = "Off")
