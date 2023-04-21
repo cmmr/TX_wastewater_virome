@@ -85,25 +85,47 @@ focus = spTransform(focus, CRS("+init=epsg:4326"))
 #   tm_layout(title="Harris County Zip Code Map overlayed with WWTF service areas",
 #             inner.margins=c(0,0,0.05,0))
 
+# Houston downtown
+Houston<- geocode("Houston, TX")  #lon -97.5  lat 26.1
+Houston_dt<- c("Houston", -95.4, 29.8) %>% t() %>%as.data.frame()
+
 # add Zipcode marks
 HarrisZip$lat <- as.numeric(as.character(HarrisZip$INTPTLAT10))
 HarrisZip$lon <- as.numeric(as.character(HarrisZip$INTPTLON10))
 coordinates1 <- HarrisZip@data[,c("GEOID10", "lat", "lon")]
 coor_sf1 = st_as_sf(coordinates1, coords = c('lon', 'lat'), crs = st_crs(HarrisZip)$proj4string)
 
-focus$`Service Areas` <- focus$CorName
-m2<-  tm_shape(harris_shp)+ tm_polygons("grey30", alpha=0, border.col = "blue", border.alpha = 1)+
-  tm_shape(focus) + tm_fill(col="Service Areas", alpha=1, lwd=1.5)+
-  tm_shape(HarrisZip)+ tm_borders("grey30", lwd=1.5)+
-  tm_shape(coor_sf1)+tm_text("GEOID10", size=0.5)+
-  #tm_add_legend('symbol', col='black', border.col='black', size=0.3, title="WWTF locations") +
-  tm_add_legend('symbol', col='white', border.col='blue', size=1, title="Harris County boundary") +
-  tm_add_legend('symbol', col='white', border.col='grey30', size=1, title="Zip Code boundaries") +
+dt_coor <- st_as_sf(Houston_dt, coords=c("V2", "V3"),crs = st_crs(HarrisZip)$proj4string)
+
+#focus$`Service Areas` <- focus$CorName
+focus$`Service Areas` <- c("1","2","3","4","5","6")
+m2<-  tm_shape(harris_shp)+ tm_polygons("grey30", alpha=0, border.col = "black", border.alpha = 1, lwd=2)+
+  tm_shape(focus) + tm_fill(col="Service Areas", alpha=1, lwd=1.5)+ tm_symbols(size=2, col="white", border.col = "black")+
+  tm_text("Service Areas", size=1)+
+  #tm_shape(HarrisZip)+ tm_borders("grey30", lwd=1.5)+ #zipcode boundaries
+  #tm_shape(coor_sf1)+tm_text("GEOID10", size=0.5)+ # mark zipcode
+  tm_shape(dt_coor)+tm_symbols(size=0.5, col="black", border.col ="black")+tm_text("V1", size=1.5, just="bottom", ymod=1)+ # mark Houston Downtown
+  tm_add_legend('symbol', col='black', border.col='black', size=0.5, 
+                label="Houston downtown",
+               legend.format = list(text.align = "left"),reverse = T) +
+  #tm_add_legend('symbol', col='white', border.col='black', size=1.5, title="Harris County boundary") +
+  tm_add_legend(type = c("line"),
+                col = c("black"),
+                lwd = c(2),
+                lty = c(1),
+                labels = c("Harris County boundary"),legend.format = list(text.align = "left"))+
+  #tm_add_legend('symbol', col='white', border.col='grey30', size=1, title="Zip Code boundaries") +
   tm_layout(#title="Harris County",
-            inner.margins=c(0,0,0,0))
+            #scale=0.9,
+            #inner.margins=c(0,0.1,0,0),
+            #frame=F,
+            legend.text.size = 1,
+            legend.title.size=1)+
+   tm_compass(position = c("right", "top"))+
+  tm_scale_bar(position = c("left", "bottom"))
 m2
 # save the map
-#tmap_save(m2, "Houston_6WWTP_map.png", width=12, height=8)
+tmap_save(m2, "Houston_6WWTP_map.png", height=6, width=8,dpi=300)
 
 
 # Map with Google map background
@@ -132,7 +154,8 @@ ezip <- read_excel("ElPaso_zipcodelist.xlsx")
 # Match zipcodes with ZCTAs
 ElPasoZip <- subset(zip, zip$GEOID10 %in% ezip$Zipcode)
 
-El_shp$`` <- ifelse(El_shp$ServiceAre=="Bustamante", "Roberto Bustamante", ifelse(El_shp$ServiceAre=="Northwest", "John T. Hickerson", ifelse(El_shp$ServiceAre=="Hervey", "Fred Hervey", El_shp$ServiceAre)))
+#El_shp$`Service Areas` <- ifelse(El_shp$ServiceAre=="Bustamante", "Roberto Bustamante", ifelse(El_shp$ServiceAre=="Northwest", "John T. Hickerson", ifelse(El_shp$ServiceAre=="Hervey", "Fred Hervey", El_shp$ServiceAre)))
+El_shp$`Service Areas` <- ifelse(El_shp$ServiceAre=="Bustamante", "3", ifelse(El_shp$ServiceAre=="Northwest", "1", ifelse(El_shp$ServiceAre=="Hervey", "2", "4")))
 
 # add Zipcode marks
 ElPasoZip$lat <- as.numeric(as.character(ElPasoZip$INTPTLAT10))
@@ -140,23 +163,44 @@ ElPasoZip$lon <- as.numeric(as.character(ElPasoZip$INTPTLON10))
 coordinates2 <- ElPasoZip@data[,c("GEOID10", "lat", "lon")]
 coor_sf2 = st_as_sf(coordinates2, coords = c('lon', 'lat'), crs = st_crs(ElPasoZip)$proj4string)
 
+El_shp$"ID" <- c("3", "1", "2", "", "", "4", "", "", "", "", "")
 # El Paso County
 El_county <- subset(county_shp, county_shp$NAME=="El Paso")
+# El Paso downtown
+ElPaso<- geocode("El Paso, TX")  #lon -97.5  lat 26.1
+ElPaso_dt<- c("El Paso", -106.4869, 31.7583) %>% t() %>%as.data.frame()
+dt_coor2 <- st_as_sf(ElPaso_dt, coords=c("V2", "V3"),crs = st_crs(ElPasoZip)$proj4string)
 
-m3<-  tm_shape(El_county)+ tm_polygons("grey30", alpha=0, border.col = "blue", border.alpha = 1)+
+
+El_shp2 <- subset(El_shp, El_shp$ID %in% c("1", "2", "3", "4"))
+
+m3<-  tm_shape(El_county)+ tm_polygons("grey30", alpha=0, border.col = "black", border.alpha = 1, lwd=2)+
   tm_shape(El_shp) + tm_fill(col="Service Areas", alpha=1, lwd=1.5)+
-  tm_shape(ElPasoZip)+ tm_borders("grey30", lwd=1.5)+
-  tm_shape(coor_sf2)+tm_text("GEOID10", size=0.8)+
-  #tm_add_legend('symbol', col='black', border.col='black', size=0.3, title="WWTF locations") +
-  tm_add_legend('symbol', col='white', border.col='blue', size=1, title="El Paso County boundary") +
-  tm_add_legend('symbol', col='white', border.col='grey30', size=1, title="Zip Code boundaries") +
+  tm_shape(El_shp2)+ tm_symbols(size=2, col="white", border.col = "black")+ tm_text("ID", size=1)+
+  #tm_shape(ElPasoZip)+ tm_borders("grey30", lwd=1.5)+
+  #tm_shape(coor_sf2)+tm_text("GEOID10", size=0.8)+
+  tm_shape(dt_coor2)+tm_symbols(size=0.5, col="black", border.col ="black")+tm_text("V1", size=1.5, just=c("right","bottom"), xmod=-1)+ # mark Downtown
+  tm_add_legend('symbol', col='black', border.col='black', size=0.5, label="El Paso downtwon") +
+  tm_add_legend(type = c("line"),
+                col = c("black"),
+                lwd = c(2),
+                lty = c(1),
+                labels = c("El Paso County boundary"),legend.format = list(text.align = "left"))+
+  #tm_add_legend('symbol', col='white', border.col='grey30', size=1, title="Zip Code boundaries") +
   tm_layout(#title="EL Paso",
-            inner.margins=c(0,0,0,0))
+            #scale=0.8,
+            #inner.margins=c(0,0,0,0.1),
+            #frame=F,
+            legend.text.size = 1,
+            legend.title.size=1)+
+  tm_compass(position = c("right", "top"), just = "Right")+
+  tm_scale_bar(position = c("left", "bottom"))
 m3
 # save the map
-#tmap_save(m3, "ElPaso_4WWTP_map.png", width=6, height=7)
+tmap_save(m3, "ElPaso_4WWTP_map.png", height=6, width=8, dpi=300)
 
-
+map <- tmap_arrange(m2,m3, nrow=1)
+map
 ```
 
 
@@ -195,7 +239,8 @@ service_area <- rbind(service_area, HZ)
 
 }
 
-final <- service_area %>% select(WWTP, GEOID10, coverage_pct) %>%
+final <- service_area %>% 
+  select(WWTP, GEOID10, coverage_pct) %>%
   st_drop_geometry() %>%
   rename(ZCTA=GEOID10) %>%
   filter(coverage_pct>=5)
@@ -209,11 +254,102 @@ final
 pop <- tidycensus::get_acs(geography = "zcta",year=2021, variable="B01001_001")
 
 # merge to our data
-final <- left_join(final, pop[,c("GEOID", "estimate")], by=c("ZCTA"="GEOID")) %>% rename(ZCTA_pop=estimate)
+final <- left_join(final, pop[,c("GEOID", "estimate")], by=c("ZCTA"="GEOID")) %>% 
+  rename(ZCTA_pop=estimate)
 
 # save the final list
 #writexl::write_xlsx(final, "Houston_WWTP_service_ZCTAs.xlsx")
 ```
+
+
+```{r}
+# calculate population size for each WWTP
+WW_pop <- final %>% 
+  mutate(pop=ZCTA_pop*coverage_pct/100) %>% 
+  group_by(WWTP) %>%
+  summarize(Population=round(sum(pop)))
+```
+
+### Another set of WWTP maps with no WW shapefiles
+
+```{r}
+bubble_sizes <- (c(10000, 50000, 200000)/100000)
+focus1 <- focus
+focus1@data <- left_join(focus1@data, WW_pop, by=c("SERVICE_AR"="WWTP"))
+focus1$Population <- focus1$Population/100000
+m2.1<-  tm_shape(harris_shp)+ tm_polygons("grey30", alpha=0, border.col = "black", border.alpha = 1, lwd=2)+
+  tm_shape(focus1) + tm_bubbles(col="Service Areas",size="Population", border.col = "black", 
+                               legend.size.is.portrait =T,legend.col.is.portrait =F,legend.size.show = T,
+                               scale=3,shapes.legend = 21, style="pretty",
+                               shapes.legend.fill = "grey80", 
+                               sizes.legend=c(0.1, 0.5, 1, 2), 
+                               sizes.legend.labels=c("10k", "50k", "100k", "200k"))+
+  tm_shape(dt_coor)+tm_symbols(size=0.5, shape=2,col="black", border.col ="black", border.alpha = 0.5)+tm_text("V1", size=1.5, just="bottom", ymod=1)+
+  tm_add_legend('symbol', col='black', border.col='black', size=0.5, shape=2,
+                label="Houston downtown",
+               legend.format = list(text.align = "left"),reverse = T) +
+  tm_add_legend(type = c("line"),
+                col = c("black"),
+                lwd = c(2),
+                lty = c(1),
+                labels = c("Harris County boundary"),legend.format = list(text.align = "left"))+
+  tm_layout(
+            inner.margins=c(0,0.1,0,0),
+            legend.text.size = 0.7,
+            legend.title.size=1)+
+   tm_compass(position = c("right", "top"))+
+  tm_scale_bar(position = c("left", "bottom"))
+m2.1
+
+tmap_save(m2.1, "Houston_6WWTP_map_circles.png", height=6, width=8,dpi=300)
+```
+
+
+
+```{r}
+# for El Paso
+#bubble_sizes <- (c(10000, 50000, 200000)/100000)
+El_shp2$Population <- c(438446,132479,140521,113292)
+El_shp2$Population <- El_shp2$Population/100000
+m3.1<-   tm_shape(El_county)+ tm_polygons("grey30", alpha=0, border.col = "black", border.alpha = 1, lwd=2)+
+  tm_shape(El_shp2) + tm_bubbles(col="ID",size="Population", border.col = "black", 
+                               legend.size.is.portrait =T,legend.col.is.portrait =F,legend.size.show = T,
+                               scale=3,shapes.legend = 21, style="pretty",#style="quantile",n=3,
+                               shapes.legend.fill = "grey80", 
+                               sizes.legend=c(1,5), 
+                               sizes.legend.labels=c("100k", "500k"))+
+  
+  tm_shape(dt_coor2)+tm_symbols(size=0.5, shape=2,col="black", border.col ="black", border.alpha = 0.5)+tm_text("V1", size=1.5,just=c("right","bottom"), xmod=-1)+ # mark Downtown
+  tm_add_legend('symbol', col='black', border.col='black', size=0.5, shape=2,
+                label="El Paso downtown",
+               legend.format = list(text.align = "left"),reverse = T) +
+  tm_add_legend(type = c("line"),
+                col = c("black"),
+                lwd = c(2),
+                lty = c(1),
+                labels = c("El Paso County boundary"),legend.format = list(text.align = "left"))+
+  tm_layout(
+            inner.margins=c(0,0.1,0,0),
+            #frame=F,
+            legend.text.size = 0.7,
+            legend.title.size=1)+
+   tm_compass(position = c("right", "top"))+
+  tm_scale_bar(position = c("left", "bottom"))
+m3.1
+
+
+# save the map
+tmap_save(m3.1, "ElPaso_4WWTP_map_circles.png", height=6, width=8, dpi=300)
+
+
+```
+
+
+
+
+
+
+
 
 
 
