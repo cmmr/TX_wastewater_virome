@@ -3,7 +3,7 @@ title: "Houston & El Paso WWTP Service Areas"
 output:
   html_notebook:
     toc: yes
-date: "2023-03-16"
+date: `r Sys.Date()`
 ---
 
 ```{r setup, include=FALSE}  
@@ -102,8 +102,11 @@ HarrisZip$lon <- as.numeric(as.character(HarrisZip$INTPTLON10))
 coordinates1 <- HarrisZip@data[,c("GEOID10", "lat", "lon")]
 coor_sf1 = st_as_sf(coordinates1, coords = c('lon', 'lat'), crs = st_crs(HarrisZip)$proj4string)
 
+#Get downtown coordinates
 dt_coor <- st_as_sf(Houston_dt, coords=c("V2", "V3"),crs = st_crs(HarrisZip)$proj4string)
-
+######################################
+### Map with NO Zip Code Boundaries
+######################################
 #focus$`Service Areas` <- focus$CorName
 focus$`Service Areas` <- c("1","2","3","4","5","6")
 m2<-  tm_shape(harris_shp)+ tm_polygons("grey30", alpha=0, border.col = "black", border.alpha = 1, lwd=2)+
@@ -131,26 +134,12 @@ m2<-  tm_shape(harris_shp)+ tm_polygons("grey30", alpha=0, border.col = "black",
    tm_compass(position = c("right", "top"))+
   tm_scale_bar(position = c("left", "bottom"))
 m2
-# save the map
-tmap_save(m2, "Houston_6WWTP_map.png", height=6, width=8,dpi=300)
-
-m2<- tm_shape(HarrisZip)+ tm_borders("grey30", lwd=0.6)+
-  #tm_shape(shp)+ tm_polygons("grey30", alpha=0.5, border.col = "black", border.alpha = 1)+
-  tm_shape(focus) + tm_borders("red", alpha=1, lwd=1.5)+
-  tm_shape(coor_sf)+
-  tm_symbols(size=0.1, col="black", border.col="black") +
-  tm_text("Sampling Site", size=1, just="left", ymod=0.6)+
-  tm_add_legend('symbol', col='black', border.col='black', size=0.3, title="WWTF locations") +
-  tm_add_legend('symbol', col='white', border.col='red', size=1, title="Service area") +
-  tm_add_legend('symbol', col='white', border.col='grey30', size=1, title="ZCTA boundaries") #+
-  #tm_layout(title="Harris County Zip Code Map overlayed with WWTF service areas",
-  #          inner.margins=c(0,0,0.05,0))
-
-m2
-# save the map
-tmap_save(m2, "Houston_6WWTP_map.pdf", width=6, height=4)
-
-
+#####################################
+# save the map in different formats
+#####################################
+tmap_save(m2, "Figures/Houston_6WWTP_map.png", height=6, width=8,dpi=300)
+tmap_save(m2, "Figures/Houston_6WWTP_map.pdf", height=6, width=8,dpi=300)
+tmap_save(m2, "Figures/Houston_6WWTP_map.svg", height=6, width=8,dpi=300)
 
 # Map with Google map background
 m1 <- Harris_Map  +
@@ -195,12 +184,13 @@ ElPaso<- geocode("El Paso, TX")  #lon -97.5  lat 26.1
 ElPaso_dt<- c("El Paso", -106.4869, 31.7583) %>% t() %>%as.data.frame()
 dt_coor2 <- st_as_sf(ElPaso_dt, coords=c("V2", "V3"),crs = st_crs(ElPasoZip)$proj4string)
 
-
+## Unique centroids 
 El_shp2 <- subset(El_shp, El_shp$ID %in% c("1", "2", "3", "4"))
+El_shp2$`Service Areas` <- El_shp2$ID
 
 m3<-  tm_shape(El_county)+ tm_polygons("grey30", alpha=0, border.col = "black", border.alpha = 1, lwd=2)+
   tm_shape(El_shp) + tm_fill(col="Service Areas", alpha=1, lwd=1.5)+
-  tm_shape(El_shp2)+ tm_symbols(size=2, col="white", border.col = "black")+ tm_text("ID", size=1)+
+  tm_shape(El_shp2)+ tm_symbols(size=2, col="white", border.col = "black")+ tm_text("Service Areas", size=1)+
   #tm_shape(ElPasoZip)+ tm_borders("grey30", lwd=1.5)+
   #tm_shape(coor_sf2)+tm_text("GEOID10", size=0.8)+
   tm_shape(dt_coor2)+tm_symbols(size=0.5, col="black", border.col ="black")+tm_text("V1", size=1.5, just=c("right","bottom"), xmod=-1)+ # mark Downtown
@@ -220,11 +210,12 @@ m3<-  tm_shape(El_county)+ tm_polygons("grey30", alpha=0, border.col = "black", 
   tm_compass(position = c("right", "top"), just = "Right")+
   tm_scale_bar(position = c("left", "bottom"))
 m3
-# save the map
-tmap_save(m3, "ElPaso_4WWTP_map.png", height=6, width=8, dpi=300)
-
-map <- tmap_arrange(m2,m3, nrow=1)
-map
+#####################################
+# save the map in different formats
+#####################################
+tmap_save(m3, "Figures/ElPaso_4WWTP_map.png", height=6, width=8, dpi=300)
+tmap_save(m3, "Figures/ElPaso_4WWTP_map.pdf", height=6, width=8, dpi=300)
+tmap_save(m3, "Figures/ElPaso_4WWTP_map.svg", height=6, width=8, dpi=300)
 ```
 
 
@@ -297,7 +288,7 @@ WW_pop <- final %>%
 ### Another set of WWTP maps with no WW shapefiles
 
 ```{r}
-bubble_sizes <- (c(10000, 50000, 200000)/100000)
+#bubble_sizes <- (c(10000, 50000, 200000)/100000)
 focus1 <- focus
 focus1@data <- left_join(focus1@data, WW_pop, by=c("SERVICE_AR"="WWTP"))
 focus1$Population <- focus1$Population/100000
@@ -324,8 +315,12 @@ m2.1<-  tm_shape(harris_shp)+ tm_polygons("grey30", alpha=0, border.col = "black
    tm_compass(position = c("right", "top"))+
   tm_scale_bar(position = c("left", "bottom"))
 m2.1
-
-tmap_save(m2.1, "Houston_6WWTP_map_circles.png", height=6, width=8,dpi=300)
+#####################################
+# save the map in different formats
+#####################################
+tmap_save(m2.1, "Figures/Houston_6WWTP_map_circles.png", height=6, width=8,dpi=300)
+tmap_save(m2.1, "Figures/Houston_6WWTP_map_circles.pdf", height=6, width=8,dpi=300)
+tmap_save(m2.1, "Figures/Houston_6WWTP_map_circles.svg", height=6, width=8,dpi=300)
 ```
 
 
@@ -336,14 +331,15 @@ tmap_save(m2.1, "Houston_6WWTP_map_circles.png", height=6, width=8,dpi=300)
 El_shp2$Population <- c(438446,132479,140521,113292)
 El_shp2$Population <- El_shp2$Population/100000
 m3.1<-   tm_shape(El_county)+ tm_polygons("grey30", alpha=0, border.col = "black", border.alpha = 1, lwd=2)+
-  tm_shape(El_shp2) + tm_bubbles(col="ID",size="Population", border.col = "black", 
+  tm_shape(El_shp2) + tm_bubbles(col="Service Areas",size="Population", border.col = "black", 
                                legend.size.is.portrait =T,legend.col.is.portrait =F,legend.size.show = T,
                                scale=3,shapes.legend = 21, style="pretty",#style="quantile",n=3,
                                shapes.legend.fill = "grey80", 
                                sizes.legend=c(1,5), 
                                sizes.legend.labels=c("100k", "500k"))+
   
-  tm_shape(dt_coor2)+tm_symbols(size=0.5, shape=2,col="black", border.col ="black", border.alpha = 0.5)+tm_text("V1", size=1.5,just=c("right","bottom"), xmod=-1)+ # mark Downtown
+  tm_shape(dt_coor2)+tm_symbols(size=0.5, shape=2,col="black", border.col ="black", border.alpha = 0.5)+
+  tm_text("V1", size=1.5,just=c("right","bottom"), xmod=-1)+ # mark Downtown
   tm_add_legend('symbol', col='black', border.col='black', size=0.5, shape=2,
                 label="El Paso downtown",
                legend.format = list(text.align = "left"),reverse = T) +
@@ -357,19 +353,38 @@ m3.1<-   tm_shape(El_county)+ tm_polygons("grey30", alpha=0, border.col = "black
             #frame=F,
             legend.text.size = 0.7,
             legend.title.size=1)+
-   tm_compass(position = c("right", "top"))+
+   tm_compass(position = c("left", "top"))+
   tm_scale_bar(position = c("left", "bottom"))
 m3.1
 
 
-# save the map
-tmap_save(m3.1, "ElPaso_4WWTP_map_circles.png", height=6, width=8, dpi=300)
-
-
+#####################################
+# save the map in different formats
+#####################################
+tmap_save(m3.1, "Figures/ElPaso_4WWTP_map_circles.png", height=6, width=8, dpi=300)
+tmap_save(m3.1, "Figures/ElPaso_4WWTP_map_circles.pdf", height=6, width=8, dpi=300)
+tmap_save(m3.1, "Figures/ElPaso_4WWTP_map_circles.svg", height=6, width=8, dpi=300)
 ```
 
 
 
+### Texas County Maps
+```{r}
+tx_map <- tm_shape(county_shp)+tm_polygons("grey30", alpha=0, border.col = "black", border.alpha = 1, lwd=0.8)+
+  tm_shape(harris_shp)+tm_borders(lwd=2) +
+  tm_fill(col="red", legend.show = T)+tm_text("NAME", xmod=2, col="black",bg.color = "white")+
+  tm_shape(El_county)+tm_borders(lwd=2) +
+  tm_fill(col="blue")+tm_text("NAME", ymod=1, col="black",bg.color = "white")+
+  tm_layout(frame=F,
+            inner.margins = c(0,0.05,0,0))
+
+#####################################
+# save the map in different formats
+#####################################
+tmap_save(tx_map, "Figures/Texas_map.png", height=6, width=6, dpi=300)
+tmap_save(tx_map, "Figures/Texas_map.pdf", height=6, width=6, dpi=300)
+tmap_save(tx_map, "Figures/Texas_map.svg", height=6, width=6, dpi=300)
+```
 
 
 
