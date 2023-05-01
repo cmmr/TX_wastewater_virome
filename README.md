@@ -4,13 +4,23 @@
 
 To share code and collaborate on analyses for the TEPHI wastewater virome manuscript (May 2022 - Feb 2023 data, Houston & El Paso)
 
+## How to get data
+
+After cloning this repo, change to the repo directory, then:
+
+`wget https://zenodo.org/record/7884454/files/data.zip`
+
+`unzip data.zip`
+
+The data files should now be in a directory called "data".
+
+
+
 ## Directory Tree
 
-Envisioned layout:
 
-** I'm putting a .gitignore on the `data/` directory **
+** There is a .gitignore on the `data/` directory **
 
-** data files will temporarily live in a shared onedrive **
 
 ```
 TX_wastewater_virome/
@@ -30,11 +40,12 @@ TX_wastewater_virome/
 └───data/
 │   │   virus_abundance_table.tsv
 │   │   WWTP_sample_metadata.xlsx
-│   │   clinical_data.xlsx
+│   │   other_data.xlsx
+│   │   etc
 │
 └───charts/
 │   │   various_figures.pdf
 │
 └───environment/
-    │   renv file or readme.md with package versions
+    │   readme.md with package versions
 ```

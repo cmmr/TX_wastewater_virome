@@ -10,7 +10,7 @@ library(data.table)
 library(stringr)
 library(dplyr)
 library(tidyr)
-library(ggrepel)
+#library(ggrepel)
 library(rprojroot)
 
 ```
