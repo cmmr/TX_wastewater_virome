@@ -51,10 +51,14 @@ nonsyn_dt <- nonsyn_dt %>%
   distinct() %>%
   filter(mut_cov >= 5)
 
-nonsyn_info_dt <- merge(nonsyn_dt, gene_table, by = "gene_name")
+nonsyn_info_dt <- merge(nonsyn_dt, gene_table, by = "gene_name", 
+                        allow.cartesian=TRUE) %>%
+  filter(genome_position >= gene_start && genome_position <= gene_end)
 
 mut_describe_dt <- nonsyn_info_dt %>%
-  mutate(gene_codon_num = ceiling((genome_position-gene_start)/3)) %>%
+  mutate(gene_codon_num = case_when(gene_orient == "+" ~ ceiling((genome_position-gene_start)/3),
+                                    gene_orient == "-" ~ ceiling((gene_end-genome_position)/3))) %>%
+  filter(gene_codon_num >= 1) %>%
   mutate(
     mutation_description = 
       paste(genome_position, gene_name, 
@@ -63,6 +67,7 @@ mut_describe_dt <- nonsyn_info_dt %>%
     ) %>%
   subset(select = c("sample_ID", "mut_prop", "mutation_description")) %>%
   distinct(sample_ID, mutation_description, .keep_all = TRUE)
+
 
 wide_mut_dt <- mut_describe_dt %>%
   group_by(mutation_description, sample_ID) %>%
@@ -149,16 +154,17 @@ clades <- sapply(g, function(n) MRCA(pp, n))
 p <- groupClade(pp, clades, group_name='subtree') + aes(color=subtree)
 #p
 
-p %<+% meta_dt + 
-  #layout_dendrogram() + 
-  geom_tippoint(aes(fill=factor(City), x=x-0.01), 
-                size=2, shape=21, color='black', alpha = 0.5) + 
-  geom_tippoint(aes(fill=factor(Site), x=x+0.01), 
-                size=2, shape=21, color='black', alpha = 0.5) +
-  #geom_tiplab(hjust=-0.5, offset=-0.1, show.legend=FALSE) + 
-  scale_color_brewer(palette='Set1', breaks=1:4) +
-  theme_dendrogram(plot.margin=margin(6,6,80,6)) +
-  theme(legend.position=c(0.1, 0.6))
+#p %<+% meta_dt + 
+#  #layout_dendrogram() + 
+#  geom_tippoint(aes(fill=factor(meta_dt$City), x=x-0.01), 
+#                size=2, shape=21, color='black', alpha = 0.5) + 
+#  geom_tippoint(aes(fill=factor(meta_dt$Site), x=x+0.01), 
+#                size=2, shape=21, color='black', alpha = 0.5) +
+#  #geom_tiplab(hjust=-0.5, offset=-0.1, show.legend=FALSE) + 
+#  scale_color_brewer(palette='Set1', breaks=1:4) +
+#  theme_dendrogram(plot.margin=margin(6,6,80,6)) +
+#  theme(legend.position=c(0.1, 0.6))
+
 ```
 
 make little gene dt
