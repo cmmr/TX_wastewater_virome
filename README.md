@@ -14,6 +14,11 @@ After cloning this repo, change to the repo directory, then:
 
 The data files should now be in a directory called "data".
 
+## Running the analyses
+
+With the `data` downloaded and the appropriate R packages downloaded `environment/README.md`, any of the `.rmd` files can be opened in `R Studio`.
+
+Feel free to run the scripts in their entirety or chunk-by-chunk to reproduct the analyses.
 
 
 ## Directory Tree
