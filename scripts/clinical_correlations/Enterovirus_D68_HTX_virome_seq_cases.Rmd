@@ -1,0 +1,127 @@
+---
+title: "Compare Enterovirus D68 case data to wastewater abundance, Houston, TX, June 2022 - February 2023"
+output: html_notebook
+---
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(dplyr)
+library(readxl)
+library(lubridate)
+library(tidyquant)
+library(tidyr)
+library(ggpubr)
+library(rstatix)
+library(rprojroot)
+
+```
+
+set paths and filenames
+```{r}
+### files
+pathogen_table=sprintf(
+  "%s/data/wastewater_specific_pathogen_abundance_table1.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+HTX_enterovirus_case_table=sprintf(
+  "%s/data/enterovirus_D68_NVSN_case_rate1.tsv", 
+  find_rstudio_root_file())
+
+```
+
+load Enterovirus D68 case rate table
+```{r}
+## already formatted as weekly summary
+HTX_enterovirus_cases_dt <- fread(HTX_enterovirus_case_table, sep = "\t", header = T)
+
+
+HTX_enterovirus_cases_dt$Week <- as.Date(HTX_enterovirus_cases_dt$Week)
+
+
+```
+
+Load/format Enterovirus D68 HTX wastewater data
+```{r}
+
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+
+enterovirus_virome_seq_dt <- fread(pathogen_table, sep = "\t", header = T) %>%
+  filter(Virus_name == "Enterovirus D68") %>%
+  mutate(RPKMF = case_when(Detection == "below_detectable_level" ~ 0,
+                           TRUE ~ RPKMF ))
+  
+enterovirus_HTX_week_dt  <- merge(enterovirus_virome_seq_dt, 
+                                  meta_dt, by = "sample_ID") %>%
+  filter(City == "Houston, TX") %>%
+  mutate(Week = floor_date(Date, "weeks", week_start = 1)) %>%
+  group_by(Week) %>%
+  summarize(RPKMF = mean(RPKMF)) %>%
+  filter(Week >= '2022-06-01')
+```
+
+add missing weeks (no cases) to case rate data
+data source says that missing weeks had no reported cases
+```{r}
+all_weeks_dt <- enterovirus_HTX_week_dt %>% select(Week)
+
+HTX_enterovirus_cases_dt <- merge(HTX_enterovirus_cases_dt, all_weeks_dt,
+                                  by = "Week", all.y = T) %>%
+  replace(is.na(.), 0)
+```
+
+plot Enterovirus D68 data as point plot and moving average
+```{r}
+ggplot() + 
+  geom_point(data = enterovirus_HTX_week_dt, 
+            aes(x=Week, y=15*(RPKMF), color="Virome Seq"), 
+            alpha = 0.2, size = 1) +
+  geom_point(data = HTX_enterovirus_cases_dt, 
+            aes(x=Week, y=case_rate, color="Case Rate"), 
+            alpha = 0.2, size = 1) +
+  geom_ma(data = enterovirus_HTX_week_dt, 
+          aes(x=Week, y=15*(RPKMF), color="Virome Seq"), 
+          ma_fun = SMA, n = 3, lwd = 1.5) +
+  geom_ma(data = HTX_enterovirus_cases_dt, 
+          aes(x=Week, y=case_rate, color="Case Rate"), 
+          ma_fun = SMA, n = 3, linetype = "solid", size = 1.5) +
+  scale_color_manual(name='Data Type',
+                     breaks=c('Virome Seq', 'Case Rate'),
+                     values=c('Virome Seq'='#4B4E55', 'Case Rate'='#DDC70F')) +
+  labs(x = "Date", title = "Houston, TX Enterovirus D68 Measurements") +
+  theme_bw() +
+  scale_y_continuous(name = "Weekly Case Rate",
+    sec.axis = sec_axis( trans=~./15, name="Wastewater Sequencing \nAbundance (RPKMF)", label=scales::comma)
+  ) +
+  scale_x_date(date_labels="%Y-%b",date_breaks  ="1 month")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+
+ggsave(sprintf("%s/charts/EnterovirusD68_HTX_virome_vs_cases1.pdf", find_rstudio_root_file()), width = 5, height = 4)
+```
+
+merge, correlate
+```{r}
+merge_enterovirus_dt <- merge(enterovirus_HTX_week_dt, HTX_enterovirus_cases_dt, by = "Week")
+
+cor(merge_enterovirus_dt$RPKMF, merge_enterovirus_dt$case_rate)
+```
+
+plot scatter
+```{r}
+merge_enterovirus_dt %>%
+  ggplot(aes(x = case_rate, y = RPKMF)) +
+  geom_point(color = "#D58A60") + 
+  geom_smooth(se = F, method = "lm", color = "#D58A60") +
+  labs(y = "Wastewater Sequencing \nAbundance (RPKMF)", 
+       x = "Weekly Case Rate") +
+  stat_cor(label.x = 0.3, color = "#D58A60") +
+  theme_bw()
+
+ggsave(sprintf("%s/charts/EnterovirusD68_HTX_virome_vs_cases_wave_scatter1.pdf", find_rstudio_root_file()), width = 3, height = 3)
+
+```
+
+
