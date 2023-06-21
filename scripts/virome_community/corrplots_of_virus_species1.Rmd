@@ -1,0 +1,126 @@
+---
+title: "correlation plot of all virus strains"
+output: html_notebook
+---
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(dplyr)
+library(readxl)
+library(lubridate)
+library(tidyr)
+library(rprojroot)
+library(wesanderson)
+library(corrplot)
+library(plotly)
+```
+
+set paths and filenames
+```{r}
+### files
+virome_table=sprintf(
+  "%s/data/wastewater_virome_abundance_table1.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+
+```
+
+load files
+```{r}
+virome_dt <- fread(virome_table, sep = "\t", header = T )
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+
+```
+
+correlate strains
+```{r}
+wide_strain_dt <- virome_dt %>%
+  filter(species != "NA") %>%
+  group_by(species, sample_ID) %>%
+  summarize(RPKMF = sum(RPKMF)) %>%
+  filter(n() >= 10) %>%
+  pivot_wider(names_from = "species", values_from = "RPKMF", values_fill = 0)
+
+wide_strain_df <- as.data.frame(wide_strain_dt)
+
+rownames(wide_strain_df) <- wide_strain_df[,1]
+wide_strain_df[,1] <- NULL
+
+
+vir_corr <- cor(wide_strain_df)
+```
+
+plot corrplot
+```{r}
+
+pdf(file = sprintf(
+  "%s/charts/corrplot_species_10ormore.pdf", 
+  find_rstudio_root_file()),
+    width = 12,
+    height = 12)
+
+cp <- corrplot(vir_corr, order = 'hclust', tl.cex = 0.4, method = 'color', 
+         type = 'lower', diag = T)
+
+dev.off()
+
+```
+
+
+combine city/week samples, run corr
+```{r}
+merge_dt <- merge(virome_dt, meta_dt, by = "sample_ID")
+
+wide_cityweek_strain_dt <- merge_dt %>%
+  mutate(Week = floor_date(Date, "weeks", week_start = 1),
+         City_Week = paste(City, Week, sep = "_")) %>%
+  filter(species != "NA") %>%
+  group_by(species, City_Week) %>%
+  summarize(RPKMF = sum(RPKMF)) %>%
+  filter(n() >= 10) %>%
+  ungroup() %>%
+  complete(species, City_Week, fill = list(RPKMF = 0)) %>%
+  group_by(species) %>%
+  mutate(norm_RPKMF = RPKMF - mean(RPKMF)) %>%
+  ungroup() %>%
+  select(species, City_Week, norm_RPKMF) %>%
+  pivot_wider(names_from = "species", values_from = "norm_RPKMF")
+
+wide_cityweek_strain_df <- as.data.frame(wide_cityweek_strain_dt)
+
+rownames(wide_cityweek_strain_df) <- wide_cityweek_strain_df[,1]
+wide_cityweek_strain_df[,1] <- NULL
+
+
+vir_cityweek_corr <- cor(wide_cityweek_strain_df)
+
+
+
+```
+
+
+plot cityweek corrplot
+```{r}
+
+pdf(file = sprintf(
+  "%s/charts/corrplot_city_week_species_10ormore.pdf", 
+  find_rstudio_root_file()),
+    width = 12,
+    height = 12)
+
+cp <- corrplot(vir_cityweek_corr, order = 'hclust', tl.cex = 0.5, method = 'color', 
+         type = 'lower', diag = T)
+
+dev.off()
+
+```
+
+
+
+
+

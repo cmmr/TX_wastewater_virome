@@ -78,6 +78,16 @@ cols <- colnames(hierarchical_df)
 tax.phy <- taxo2phylog(as.taxo(hierarchical_df))
 ```
 
+```{r}
+virome_dt %>% 
+  filter(strain != "NA") %>%
+  summarize(families = n_distinct(family),
+            genera = n_distinct(genus),
+            species = n_distinct(species),
+            strains = n_distinct(strain))
+```
+
+
 group  RPKMF by sample_ID/species
 ```{r}
 species_abund_dt <- virome_dt %>%
@@ -115,15 +125,10 @@ important_info_df <- important_info_dt %>%
 
 important_info_df <- as.data.frame(important_info_df, 
                                    stringsAsFactors=TRUE, 
-                                   row.names = "species") %>%
+                                   row.names = "species")
 ```
 
-```{r}
-test1 <- merge(important_info_dt, hierarchical_dt)  %>%
-  distinct(species)
 
-anti_join(important_info_dt, hierarchical_dt, by = "species")
-```
 
 
 plot treelike object
