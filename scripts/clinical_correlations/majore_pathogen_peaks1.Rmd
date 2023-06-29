@@ -1,0 +1,137 @@
+---
+title: "compare peaks of each major pathogen for each city"
+output: html_notebook
+---
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(dplyr)
+library(readxl)
+library(lubridate)
+library(tidyquant)
+library(tidyr)
+library(ggpubr)
+library(rstatix)
+library(rprojroot)
+library(wesanderson)
+
+```
+
+set paths and filenames
+```{r}
+### files
+virome_table=sprintf(
+  "%s/data/wastewater_virome_abundance_table1.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+
+```
+
+load and merge tables
+```{r}
+virome_dt <- fread(virome_table, sep = "\t", header = T )
+
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+
+virome_met_dt <- merge(virome_dt, meta_dt, by = "sample_ID")
+
+virome_met_dt$City_Site <- str_c(virome_met_dt$City, ", ", virome_met_dt$Site)
+
+# filtering to dates when collection at ALL sites began
+virome_met_dt <- virome_met_dt %>%
+  filter(Date >= '2022-06-07')
+```
+
+```{r}
+select_dt <- virome_met_dt %>%
+  filter(species %in% c("Norwalk virus", "Enterovirus D", "Rotavirus A", 
+                        "Influenza A virus", 
+                        "Severe acute respiratory syndrome-related coronavirus", 
+                        "Monkeypox virus", "Respiratory syncytial virus", 
+                        "Human mastadenovirus B", "Hepatovirus A", 
+                        "Human respirovirus 1", "Human respirovirus 3")) %>%
+  mutate(Week = floor_date(Date, "weeks", week_start = 1)) %>%
+  group_by(sample_ID, City, Week, species) %>%
+  summarize(RPKMF = sum(RPKMF)) %>%
+  ungroup() %>%
+  group_by(species, City) %>%
+  mutate(rel_ab = RPKMF/sum(RPKMF)) %>%
+  ungroup()
+
+```
+
+group by city/virus, normalize peaks
+```{r}
+
+pal <- wes_palette("Darjeeling2", 11, type = "continuous")
+
+select_dt %>%
+  group_by(Week, City, species) %>%
+  summarize(rel_ab = sum(rel_ab),
+            RPKMF = mean(RPKMF)) %>%
+  ungroup() %>%
+  complete(Week, City, species, fill = list(rel_ab = 0, RPKMF = 0)) %>%
+  mutate(species = gsub("Enterovirus D", "Enterovirus D68", species),
+         species = gsub("Norwalk virus", "Noroviruses", species),
+         species = gsub("Severe acute respiratory syndrome-related coronavirus",
+                        "SARS-CoV2", species),
+         species = gsub("Hepatovirus A", "Hepatitis A Virus", species),
+         species = gsub("Human respirovirus 3", "Human Parainfluenza Virus 3", species),
+         species = gsub("Human respirovirus 1", "Human Parainfluenza Virus 1", species)) %>%
+  group_by(City, species) %>%
+  mutate(R_of_max = RPKMF/max(RPKMF)) %>%
+  ungroup() %>%
+  ggplot(aes(x = Week, y = R_of_max, color = species)) +
+  #geom_ma(ma_fun = SMA, n = 3, linetype = "solid", size = 0.8, alpha = 0.9) +
+  geom_line(linewidth = 1.2) +
+  scale_x_date(date_breaks = "months", date_labels = "%b %Y") +
+  scale_color_manual(values = pal) +
+  facet_wrap(vars(City), ncol = 1, scales = "free_y", labeller = label_wrap_gen()) +
+  labs(x = "Date", y = "City-wide abundance (RPKMF)") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+```
+
+group by city/virus, normalize peaks
+```{r}
+
+pal <- wes_palette("Darjeeling2", 11, type = "continuous")
+
+select_dt %>%
+  group_by(Week, City, species) %>%
+  summarize(rel_ab = sum(rel_ab),
+            RPKMF = mean(RPKMF)) %>%
+  ungroup() %>%
+  complete(Week, City, species, fill = list(rel_ab = 0, RPKMF = 0)) %>%
+  mutate(species = gsub("Enterovirus D", "Enterovirus D68", species),
+         species = gsub("Norwalk virus", "Noroviruses", species),
+         species = gsub("Severe acute respiratory syndrome-related coronavirus",
+                        "SARS-CoV2", species),
+         species = gsub("Hepatovirus A", "Hepatitis A Virus", species),
+         species = gsub("Human respirovirus 3", "Human Parainfluenza Virus 3", species),
+         species = gsub("Human respirovirus 1", "Human Parainfluenza Virus 1", species)) %>%
+  group_by(City, species) %>%
+  filter(RPKMF == max(RPKMF),
+         RPKMF > 0) %>%
+  ungroup() %>%
+  ggplot(aes(x = Week, y = City, color = species, group = species)) +
+  geom_line(linesize= 0.8, alpha = 0.8) +
+  geom_point(aes(size = log(RPKMF)), alpha = 0.8) +
+  scale_x_date(date_breaks = "months", date_labels = "%b %Y") +
+  scale_color_manual(values = pal) +
+  #facet_wrap(vars(City), ncol = 1, scales = "free_y", labeller = label_wrap_gen()) +
+  labs(x = "Date", y = "City") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+```
+
+
+
+
+
+
