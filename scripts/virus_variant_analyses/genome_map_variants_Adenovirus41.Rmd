@@ -1,0 +1,225 @@
+---
+title: "genome maps with non-synonmous mutations, Adenovirus 41"
+output: html_notebook
+---
+
+load packages
+```{r}
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(gridExtra)
+library(dplyr)
+library(readxl)
+library(lubridate)
+library(wesanderson)
+library(tidyr)
+library(Rtsne)
+library(ggtree)
+library(ggnewscale)
+library(aplot)
+library(rprojroot)
+library(gggenes)
+library(cowplot)
+library(scales)
+
+```
+
+
+set paths and filenames
+```{r}
+### files
+variant_table=sprintf(
+  "%s/data/all_adeno41_refseq_KY316160.1.nosyn_variants2.tsv", 
+  find_rstudio_root_file())
+metadata_table=sprintf(
+  "%s/data/wastewater_sample_metadata_table1.tsv", 
+  find_rstudio_root_file())
+CDS_table=sprintf(
+  "%s/data/KY316160.1_CDS_table1.tsv", 
+  find_rstudio_root_file())
+
+```
+
+load tables
+```{r}
+gene_table <- fread(CDS_table, header = T, sep = "\t") 
+
+gene_table$molecule <- "Adenovirus 41"
+
+#gene_table
+
+meta_dt <- fread(metadata_table, sep = "\t", header = T )
+
+nonsyn_dt <- fread(variant_table, sep = "\t", header = T)
+
+nonsyn_dt <- nonsyn_dt %>% 
+  mutate(mut_cov = round(position_cov * mut_prop)) %>%
+  distinct() %>%
+  filter(mut_cov >= 5) 
+
+nonsyn_info_dt <- merge(nonsyn_dt, gene_table, by = "gene_name", 
+                        allow.cartesian=TRUE) %>%
+  filter(genome_position >= gene_start && genome_position <= gene_end)
+```
+
+parse mutations for codon
+```{r}
+mut_describe_dt <- nonsyn_info_dt %>%
+  mutate(gene_codon_num = case_when(gene_orient == "+" ~ ceiling((genome_position-gene_start)/3),
+                                    gene_orient == "-" ~ ceiling((gene_end-genome_position)/3))) %>%
+  filter(gene_codon_num >= 1) #%>%
+
+ordered_date_mut <- merge(mut_describe_dt, meta_dt, by = "sample_ID") %>%
+  group_by(gene_tag, gene_codon_num) %>%
+  filter(n() > 20 & n() < 145) %>%
+  arrange(gene_tag, gene_codon_num, Date) %>%
+  mutate(chronological_order = row_number()) %>%
+  ungroup()
+
+```
+
+palette for genes
+```{r}
+n_genes <- length(unique(gene_table$gene_tag))
+
+
+pal_gene <- wes_palette("Darjeeling2", n_genes, type = "continuous")
+```
+
+
+
+fix orient
+```{r}
+gene_table <- gene_table %>%
+  mutate(orientation = case_when(gene_orient == "+" ~ TRUE,
+                                 gene_orient == "-" ~ FALSE))
+
+```
+
+
+genome plot
+```{r}
+
+HTX_mutated_loci_dt <- ordered_date_mut %>% 
+  filter(City == "Houston, TX") %>%
+  distinct(genome_position, molecule)
+
+EPTX_mutated_loci_dt <- ordered_date_mut %>% 
+  filter(City == "El Paso, TX") %>%
+  distinct(genome_position, molecule)
+
+
+
+genep <- ggplot() +
+  geom_gene_arrow(data=gene_table, aes(xmin = gene_start, xmax = gene_end, 
+             y = molecule, fill = gene_tag, forward = orientation),
+             arrowhead_height = unit(8, "mm"), 
+                  arrowhead_width = unit(2, "mm"),
+                  arrow_body_height = unit(8, "mm")) +
+  geom_gene_label(data=gene_table, aes(xmin = gene_start, xmax = gene_end,
+                                       y = molecule, fill = gene_tag,
+                                       label = gene_tag), align = "left") +
+  geom_rug(data = HTX_mutated_loci_dt, aes(x=genome_position), sides = "t",
+           length = unit(0.15, "npc"), color = "grey60", outside = T) +
+    geom_rug(data = EPTX_mutated_loci_dt, aes(x=genome_position), sides = "b",
+           length = unit(0.15, "npc"), color = "grey60", outside = T) +
+  coord_cartesian(clip = "off") +
+  scale_fill_manual(values = pal_gene) +
+  xlim(0, 33807) +
+  theme_genes() +
+  theme(legend.position = "off",
+        axis.ticks.y=element_blank()) 
+  
+
+genep
+```
+
+set palette
+```{r}
+n_AA <- length(unique(ordered_date_mut$mut_AA))
+
+pal1 <- wes_palette("Moonrise3", n_AA, type = "continuous")
+
+names(pal1) <- unique(ordered_date_mut$mut_AA)
+```
+
+```{r}
+
+as.Date_origin <- function(x){
+  as.Date(x, origin = '1970-01-01')
+}
+
+HTX_dates <- ordered_date_mut %>% 
+  filter(City == "Houston, TX") %>% 
+  distinct(Date)
+
+HTX_mut_towersp <- ggplot() +
+  geom_point(data = ordered_date_mut %>% filter(City == "Houston, TX"), 
+             aes(x = genome_position, y = Date, color = mut_AA, size = mut_prop),
+             alpha = 0.8) +
+  scale_color_manual(values = pal1) +
+  #scale_color_gradient(low = "#FDD262",
+  #                     high = "#3F3F7B", labels=as.Date_origin, name="Date") +
+  geom_rug(data = HTX_dates, aes(y=Date), sides = "l") +
+  facet_wrap(~City, scales = "free_y", ncol = 1) +
+  scale_y_date(date_labels="%Y-%b",date_breaks  ="1 month") +
+  xlim(0, 33807) +
+  labs(x = "") +
+  theme_minimal() +
+  theme(legend.position = "off",
+        axis.text.x = element_blank())
+
+HTX_mut_towersp
+
+
+EPTX_dates <- ordered_date_mut %>% 
+  filter(City == "El Paso, TX") %>% 
+  distinct(Date)
+
+EPTX_mut_towersp <- ggplot() +
+  geom_point(data = ordered_date_mut %>% filter(City == "El Paso, TX"),
+             aes(x = genome_position, y = Date, color = mut_AA, size = mut_prop),
+             alpha = 0.8) +
+  scale_color_manual(values = pal1) +
+  #scale_color_gradient(low = "#FDD262",
+  #                     high = "#3F3F7B", labels=as.Date_origin, name="Date") +
+  geom_rug(data = EPTX_dates, aes(y=Date), sides = "l") +
+  facet_wrap(~City, scales = "free_y", ncol = 1, strip.position = "bottom") +
+  scale_y_date(date_labels="%Y-%b",date_breaks  ="1 month") +
+  xlim(0, 33807) +
+  labs(x = "") +
+  guides(color=guide_legend(ncol=2)) +
+  theme_minimal()  +
+  theme(legend.position = "right",
+        axis.text.x = element_blank())
+
+EPTX_mut_towersp
+
+legend_p <- get_legend(EPTX_mut_towersp)
+
+```
+
+combine plots
+```{r}
+combp <- plot_grid(HTX_mut_towersp, genep, 
+                   EPTX_mut_towersp + theme(legend.position="none"), 
+                   align = "v", ncol = 1, 
+                   rel_heights = c(40/100, 20/100, 40/100))
+
+w_legend_combp <- plot_grid(combp, legend_p, ncol = 2,
+                            rel_widths = c(83/100, 17/100))
+                            
+w_legend_combp
+
+ggsave(w_legend_combp, file = sprintf("%s/charts/Adenovirus41_genomemap_mutations3.pdf", 
+                            find_rstudio_root_file()), 
+       width = 12, height = 5)
+```
+
+
+
+```{r}
+length(unique(ordered_date_mut$sample_ID))
+```
+
