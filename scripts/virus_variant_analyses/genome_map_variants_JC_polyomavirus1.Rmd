@@ -102,7 +102,7 @@ genep <- ggplot() +
                                        label = gene_tag), align = "left") +
   geom_rug(data = HTX_mutated_loci_dt, aes(x=genome_position), sides = "t",
            length = unit(0.15, "npc"), color = "grey60", outside = T) +
-    geom_rug(data = EPTX_mutated_loci_dt, aes(x=genome_position), sides = "b",
+  geom_rug(data = EPTX_mutated_loci_dt, aes(x=genome_position), sides = "b",
            length = unit(0.15, "npc"), color = "grey60", outside = T) +
   coord_cartesian(clip = "off") +
   scale_fill_brewer(palette = "YlGnBu") +
@@ -117,11 +117,14 @@ genep
 
 set palette
 ```{r}
-n_AA <- length(unique(ordered_date_mut$mut_AA))
+
+codon_list <- c("A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", 
+                "O", "P", "Q", "R", "S", "T", "U", "V", "W", "Y", "STOP")
+n_AA <- length(codon_list)
 
 pal1 <- wes_palette("Moonrise3", n_AA, type = "continuous")
 
-names(pal1) <- unique(ordered_date_mut$mut_AA)
+names(pal1) <- codon_list
 ```
 
  mutation plot
@@ -139,6 +142,7 @@ HTX_mut_towersp <- ggplot() +
   geom_point(data = ordered_date_mut %>% filter(City == "Houston, TX"), 
              aes(x = genome_position, y = Date, color = mut_AA, size = mut_prop),
              alpha = 0.8) +
+  scale_size(range = c(0.5,3.5)) +
   scale_color_manual(values = pal1) +
   #scale_color_gradient(low = "#FDD262",
   #                     high = "#3F3F7B", labels=as.Date_origin, name="Date") +
@@ -162,6 +166,7 @@ EPTX_mut_towersp <- ggplot() +
   geom_point(data = ordered_date_mut %>% filter(City == "El Paso, TX"),
              aes(x = genome_position, y = Date, color = mut_AA, size = mut_prop),
              alpha = 0.8) +
+  scale_size(range = c(0.5,3.5)) +
   scale_color_manual(values = pal1) +
   #scale_color_gradient(low = "#FDD262",
   #                     high = "#3F3F7B", labels=as.Date_origin, name="Date") +
@@ -195,7 +200,7 @@ w_legend_combp
 
 ggsave(w_legend_combp, file = sprintf("%s/charts/JC_polyomavirus_genomemap_mutations3.pdf", 
                             find_rstudio_root_file()), 
-       width = 8, height = 5)
+       width = 7, height = 5)
 ```
 
 
