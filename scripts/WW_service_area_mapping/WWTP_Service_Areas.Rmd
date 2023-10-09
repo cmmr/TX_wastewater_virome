@@ -1,8 +1,6 @@
 ---
 title: "Houston & El Paso WWTP Service Areas"
-output:
-  html_notebook:
-    toc: yes
+output: html_notebook
 date: `r Sys.Date()`
 ---
 

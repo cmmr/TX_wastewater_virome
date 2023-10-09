@@ -14,9 +14,19 @@ After cloning this repo, change to the repo directory, then:
 
 The data files should now be in a directory called "data".
 
+## Using renv to load the versioned libraries and run analyses in RStudio
+
+1) If not done already, git clone this repo
+
+2) In the Finder, double click on `TX_wastewater_virome.Rproj` to load the project in RStudio
+
+3) use `renv` to install the necessary libraries
+
+`renv::restore()`
+
 ## Running the analyses
 
-With the `data` downloaded and the appropriate R packages downloaded `environment/README.md`, any of the `.rmd` files can be opened in `R Studio`.
+With the `data` downloaded and the appropriate R packages downloaded, any of the `.rmd` files can be opened in `R Studio`.
 
 Feel free to run the scripts in their entirety or chunk-by-chunk to reproduct the analyses.
 
