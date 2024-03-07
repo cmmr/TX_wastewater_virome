@@ -133,6 +133,31 @@ ggsave(sprintf("%s/charts/Flu_HTX_virome_vs_cases_wave_scatter1.pdf", find_rstud
 
 ```
 
+```{r}
+ggplot() + 
+  geom_line(data = flu_HTX_week_dt, 
+            aes(x=Week, y=12*(RPKMF), color="Virome Seq"), 
+            size = 1.5, linetype = 2) +
+  geom_line(data = flu_positivity_dt, 
+            aes(x=Week, y=percent_positive, color="Positivity"), 
+            size = 1.5) +
+  #geom_ma(data = flu_HTX_week_dt, 
+  #        aes(x=Week, y=12*(RPKMF), color="Virome Seq"), 
+  #        ma_fun = SMA, n = 3, size = 1.5) +
+  #geom_ma(data = flu_positivity_dt, 
+  #        aes(x=Week, y=percent_positive, color="Positivity"), 
+  #        ma_fun = SMA, n = 3, linetype = "solid", size = 1.5) +
+  scale_color_manual(name='Data Type',
+                     breaks=c('Virome Seq', 'Positivity'),
+                     values=c('Virome Seq'='#4B4E55', 'Positivity'='#62589F')) +
+  labs(x = "Date", title = "Houston, TX Influenza Measurements") +
+  theme_bw() +
+  scale_y_continuous(name = "Weekly Patient Discharge % Positivity",
+    sec.axis = sec_axis( trans=~./12, name="Wastewater Sequencing \nAbundance (RPKMF)", label=scales::comma)
+  ) +
+  scale_x_date(date_labels="%Y-%b",date_breaks  ="1 month")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
 
 
 
